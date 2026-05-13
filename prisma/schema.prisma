@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GamePhase {
+  EXPLORING
+  COMBAT
+  GAMEOVER
+  WIN
+  SHOP
+  REST
+  EVENT
+  TREASURE
+  LEVELUP
+}
+
+enum TileType {
+  SAFE
+  ENEMY
+  KEY
+  EXIT
+  WALL
+  SHOP
+  REST
+  TREASURE
+  EVENT
+}
+
+// Elemental cards replacing traditional suits
+enum CardElement {
+  FIRE
+  ICE
+  ELECTRICITY
+  WIND
+}
+
+enum PlayerClass {
+  BERSERKER
+  PALADIN
+  WIZARD
+  OVERSEER
+}
+
+model User {
+  id        String        @id @default(cuid())
+  email     String?       @unique
+  sessions  GameSession[]
+  createdAt DateTime      @default(now())
+}
+
+model GameSession {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  phase GamePhase @default(EXPLORING)
+  floor Int       @default(1)
+
+  // Player Stats
+  playerClass  PlayerClass @default(BERSERKER)
+  maxHp        Int         @default(100)
+  currentHp    Int         @default(100)
+  gold         Int         @default(50)
+  currentXP    Int         @default(0)
+  level        Int         @default(1)
+  relics       String[]    @default([])
+  passives     String[]    @default([]) // acquired passive abilities
+  hasKey       Boolean     @default(false)
+  torchRadius  Int         @default(2)
+  baseHandSize Int         @default(8)
+
+  // Player Position
+  posX Int @default(0) // axial q
+  posY Int @default(0) // axial r
+
+  // Relations
+  tiles Tile[]
+  deck  Card[]
+
+  // Combat State (populated when phase == COMBAT)
+  enemyName             String?
+  enemyMaxHp            Int?
+  enemyCurrentHp        Int?
+  enemyAttackDamage     Int?
+  enemyStatusEffects    Json? // StatusEffect[] — BURN, FREEZE, CHAIN, PUSH
+  handsRemaining        Int?
+  discardsRemaining     Int?
+  combatMultiplierBonus Float @default(1.0) // stacks from ELECTRICITY chains
+
+  // Pending level-up choices (populated when XP threshold crossed)
+  pendingLevelUpChoices Json? // LevelUpChoice[]
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model Tile {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   GameSession @relation(fields: [sessionId], references: [id])
+
+  q            Int
+  r            Int
+  type         TileType
+  revealed     Boolean  @default(false)
+  dangerNumber Int      @default(0)
+  hasItem      Boolean  @default(false)
+
+  @@unique([sessionId, q, r])
+}
+
+model Card {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   GameSession @relation(fields: [sessionId], references: [id])
+
+  element         CardElement
+  rank            Int
+  isUpgraded      Boolean      @default(false)
+  specialModifier Json? // e.g. { "piercing": true, "ignitionStack": 1 }
+  location        CardLocation @default(DECK)
+}
+
+enum CardLocation {
+  DECK
+  HAND
+  DISCARD
+  SHOP
+}
