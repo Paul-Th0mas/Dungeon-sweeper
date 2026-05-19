@@ -19,17 +19,24 @@ export type GamePhase =
   | 'REST'
   | 'EVENT'
   | 'TREASURE'
-  | 'LEVELUP';
+  | 'LEVELUP'
+  | 'START_SCREEN'
+  | 'FLOOR_END';
 
 // Elemental system replacing traditional suits
 export type CardElement = 'FIRE' | 'ICE' | 'ELECTRICITY' | 'WIND';
-export type CardRank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+// Rank 0 = Ash (broken card), 2–14 = normal play ranks
+export type CardRank = number;
 
 export interface Card {
   id: string;
   element: CardElement;
   rank: CardRank;
   isUpgraded?: boolean;
+  isAsh?: boolean;           // true when all uses are spent — clogs the hand
+  isExhaust?: boolean;       // if true, removed from deck after one use
+  currentUses?: number;      // remaining uses before breaking
+  maxUses?: number;          // max uses (repaired at Rest Room)
   specialModifier?: Record<string, unknown>;
   location?: string;
 }
@@ -42,29 +49,23 @@ export interface StatusEffect {
   label: string;
 }
 
-// ── Spell / Hand Results ────────────────────────────────────────────────────
-export type HandRank =
-  | 'HIGH_CARD'
-  | 'PAIR'
-  | 'TWO_PAIR'
-  | 'THREE_OF_A_KIND'
-  | 'STRAIGHT'
-  | 'FLUSH'
-  | 'FULL_HOUSE'
-  | 'FOUR_OF_A_KIND'
-  | 'STRAIGHT_FLUSH';
+export interface FrameData {
+  playerCard: Card | null;
+  enemyElement: CardElement | null;
+  result: 'WIN' | 'LOSE' | 'TIE' | 'NEUTRAL' | 'NONE';
+  damageToEnemy: number;
+  damageToPlayer: number;
+  enemyHpAfter: number;
+}
 
-export interface SpellResult {
-  spellName: string;
-  handRank: HandRank;
-  damage: number;
-  multiplier: number;
-  baseDamage: number;
+export interface ClashResult {
+  frames: FrameData[];
+  spellsTriggered: string[];
+  totalEnemyDamage: number;
+  totalPlayerDamage: number;
   newStatusEffects: StatusEffect[];
-  extraDraws: number;
-  extraDiscards: number;
   description: string;
-  dominantElement: CardElement | 'HYBRID';
+  enemyHpAtStart: number;
 }
 
 // ── Enemy ────────────────────────────────────────────────────────────────────
@@ -73,8 +74,6 @@ export interface Enemy {
   name: string;
   maxHp: number;
   currentHp: number;
-  handsAllowed: number;
-  discardsAllowed: number;
   attackDamage: number;
   rewardRarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
   statusEffects: StatusEffect[];
@@ -135,8 +134,11 @@ export interface Player {
 export interface CombatState {
   enemy: Enemy | null;
   hand: Card[];
-  selectedCards: Card[];
-  discardsRemaining: number;
-  handsRemaining: number;
-  lastSpell: SpellResult | null;
+  playerQueue: Card[];
+  enemyQueue: CardElement[];
+  enemyQueueRevealed: boolean;
+  queueSlots: number;
+  maxVigor: number;
+  currentVigor: number;
+  lastClash: ClashResult | null;
 }

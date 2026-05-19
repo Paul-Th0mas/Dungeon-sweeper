@@ -10,16 +10,17 @@ import ShopView from '@/components/ShopView';
 import RestRoomView from '@/components/RestRoomView';
 import EventView from '@/components/EventView';
 import LevelUpModal from '@/components/LevelUpModal';
+import StartScreenView from '@/components/StartScreenView';
+import FloorEndModal from '@/components/FloorEndModal';
+import TreasureRoomView from '@/components/TreasureRoomView';
 
 export default function Home() {
-  const { gamePhase, initializeGame } = useGameStore();
+  const { gamePhase } = useGameStore();
 
-  useEffect(() => {
-    initializeGame();
-  }, [initializeGame]);
 
   return (
     <main className="w-full h-screen bg-zinc-950 text-zinc-100 select-none overflow-hidden">
+      {gamePhase === 'START_SCREEN' && <StartScreenView />}
       {gamePhase === 'EXPLORING' && <ExplorationView />}
       {gamePhase === 'COMBAT'    && <CombatView />}
       {gamePhase === 'GAMEOVER'  && <GameOverView />}
@@ -27,7 +28,14 @@ export default function Home() {
       {gamePhase === 'SHOP'      && <ShopView />}
       {gamePhase === 'REST'      && <RestRoomView />}
       {gamePhase === 'EVENT'     && <EventView />}
+      {gamePhase === 'TREASURE'  && <TreasureRoomView />}
       {gamePhase === 'LEVELUP'   && <LevelUpModal />}
+      {gamePhase === 'FLOOR_END' && (
+        <>
+          <ExplorationView />
+          <FloorEndModal />
+        </>
+      )}
     </main>
   );
 }

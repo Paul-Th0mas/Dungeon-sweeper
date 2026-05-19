@@ -42,7 +42,7 @@ export default function WinView() {
         <motion.button 
           whileHover={{ scale: 1.05, gap: '2rem' }}
           whileTap={{ scale: 0.95 }}
-          onClick={initializeGame}
+          onClick={() => initializeGame('BERSERKER')}
           className="group flex items-center gap-6 px-12 py-5 bg-yellow-500 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-[0_20px_60px_rgba(234,179,8,0.3)]"
         >
           <span>Descend Further</span>

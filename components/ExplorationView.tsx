@@ -4,7 +4,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { axialToPixel, coordToString } from '@/lib/hexMath';
 import HexTile from './HexTile';
 import { motion } from 'framer-motion';
-import { Heart, Compass, Trophy, Zap, Star, Shield } from 'lucide-react';
+import { Heart, Compass, Trophy, Zap, Star, Shield, Package, FlaskConical } from 'lucide-react';
 
 const CLASS_COLORS: Record<string, { bar: string; badge: string }> = {
   BERSERKER: { bar: 'from-red-600 to-orange-500',    badge: 'text-red-400 bg-red-500/10 border-red-500/20' },
@@ -14,7 +14,7 @@ const CLASS_COLORS: Record<string, { bar: string; badge: string }> = {
 };
 
 export default function ExplorationView() {
-  const { grid, player } = useGameStore();
+  const { grid, player, useItem } = useGameStore();
   const hexSize = 44;
 
   if (!player) return null;
@@ -93,17 +93,53 @@ export default function ExplorationView() {
           )}
         </div>
 
-        {/* Key badge */}
-        {player.hasKey && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="glass px-6 py-3 rounded-2xl border-yellow-500/30 flex items-center gap-3 pointer-events-auto shadow-[0_0_30px_rgba(234,179,8,0.1)]"
-          >
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <span className="text-sm font-black text-yellow-500 uppercase tracking-widest">Floor Key</span>
-          </motion.div>
-        )}
+        {/* Right Panel: Inventory + Key */}
+        <div className="flex flex-col gap-4 items-end">
+          {/* Key badge */}
+          {player.hasKey && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="glass px-6 py-3 rounded-2xl border-yellow-500/30 flex items-center gap-3 pointer-events-auto shadow-[0_0_30px_rgba(234,179,8,0.1)]"
+            >
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              <span className="text-sm font-black text-yellow-500 uppercase tracking-widest">Floor Key</span>
+            </motion.div>
+          )}
+
+          {/* Inventory */}
+          <div className="glass p-4 rounded-2xl flex flex-col gap-3 pointer-events-auto border-zinc-800/50 min-w-[200px]">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500 mb-1">
+              <Package className="w-4 h-4" />
+              Inventory
+            </div>
+            
+            {player.inventory.length === 0 ? (
+              <div className="text-[10px] text-zinc-600 font-bold italic py-2">Empty Bag</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {player.inventory.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 group hover:border-yellow-500/30 transition-all">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
+                        {item === 'HEALTH_POTION' && <FlaskConical className="w-3.5 h-3.5 text-yellow-500" />}
+                      </div>
+                      <span className="text-[10px] font-bold text-zinc-300">
+                        {item === 'HEALTH_POTION' ? 'Health Potion' : item}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => useItem(item as string)}
+                      className="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-yellow-500 hover:text-zinc-950 text-[9px] font-black uppercase tracking-widest transition-all"
+                    >
+                      Use
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </motion.div>
 
       {/* Grid */}

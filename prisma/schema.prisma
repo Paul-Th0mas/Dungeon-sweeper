@@ -16,6 +16,8 @@ enum GamePhase {
   EVENT
   TREASURE
   LEVELUP
+  START_SCREEN
+  FLOOR_END
 }
 
 enum TileType {
@@ -81,18 +83,27 @@ model GameSession {
   tiles Tile[]
   deck  Card[]
 
+  inventory             String[]   @default([])
+
   // Combat State (populated when phase == COMBAT)
   enemyName             String?
-  enemyMaxHp            Int?
-  enemyCurrentHp        Int?
+  enemyMaxHp            Int?       // Base integrity for enemies (used as their Vigor equivalent if we simplify, but let's keep it maxHp/currentHp for them or rename to vigor)
+  enemyCurrentHp        Int?       // They don't have separate Vigor/Health, their HP acts as Vigor
   enemyAttackDamage     Int?
-  enemyStatusEffects    Json? // StatusEffect[] — BURN, FREEZE, CHAIN, PUSH
-  handsRemaining        Int?
-  discardsRemaining     Int?
-  combatMultiplierBonus Float @default(1.0) // stacks from ELECTRICITY chains
+  enemyStatusEffects    Json?      // StatusEffect[] — BURN, FREEZE, CHAIN, PUSH
+  playerQueue           String[]   @default([]) // Queue of played card IDs
+  enemyQueue            String[]   @default([]) // Queue of enemy intents (Element strings)
+  enemyQueueRevealed    Boolean    @default(true) // Hidden if PUSH status is active
+  queueSlots            Int        @default(4)    // Slots available to player this turn
+  combatMultiplierBonus Float      @default(1.0)  // Stacks from ELECTRICITY chains
+  maxVigor              Int        @default(100)
+  currentVigor          Int        @default(100)
 
   // Pending level-up choices (populated when XP threshold crossed)
   pendingLevelUpChoices Json? // LevelUpChoice[]
+
+  // Saved grid when entering sub-rooms (e.g. TREASURE)
+  savedGrid Json?
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
@@ -121,7 +132,11 @@ model Card {
   element         CardElement
   rank            Int
   isUpgraded      Boolean      @default(false)
-  specialModifier Json? // e.g. { "piercing": true, "ignitionStack": 1 }
+  isAsh           Boolean      @default(false)   // true when currentUses hits 0
+  isExhaust       Boolean      @default(false)   // if true, card is removed after one use
+  currentUses     Int          @default(3)        // remaining uses before becoming Ash
+  maxUses         Int          @default(3)        // maximum uses (restored at Rest)
+  specialModifier Json? // e.g. { "piercing": true }
   location        CardLocation @default(DECK)
 }
 

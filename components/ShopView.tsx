@@ -2,11 +2,15 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { motion } from 'framer-motion';
-import { ShoppingCart, X, Zap } from 'lucide-react';
-import { purchaseItem, exitShop } from '@/lib/actions';
+import { ShoppingCart, X, Zap, Shield, Sparkles, Trash2, ArrowUpCircle } from 'lucide-react';
+import { purchaseItem, exitShop, purchaseCardRemoval, purchaseCardUpgrade, purchaseRelic } from '@/lib/actions';
+import CardComponent from './Card';
+import { Card } from '@/lib/types';
+import { useState } from 'react';
 
 export default function ShopView() {
-  const { player, sessionId } = useGameStore();
+  const { player, sessionId, grid } = useGameStore();
+  const [shopMode, setShopMode] = useState<'MAIN' | 'REMOVE' | 'UPGRADE'>('MAIN');
 
   if (!player || !sessionId) return null;
 
@@ -23,13 +27,37 @@ export default function ShopView() {
     }
   };
 
-  const handlePurchase = async (itemType: 'HEAL' | 'REVEAL' | 'REMOVE_CURSE') => {
+  const handlePurchase = async (itemType: 'HEAL' | 'REVEAL') => {
     const sessionData = await purchaseItem(sessionId, itemType);
     if (sessionData) {
       useGameStore.setState({
         player: sessionData.player,
         grid: sessionData.grid,
       });
+    }
+  };
+
+  const handleCardRemoval = async (cardId: string) => {
+    const sessionData = await purchaseCardRemoval(sessionId, cardId);
+    if (sessionData) {
+      useGameStore.setState({ player: sessionData.player, grid: sessionData.grid });
+      setShopMode('MAIN');
+    }
+  };
+
+  const handleCardUpgrade = async (cardId: string) => {
+    const sessionData = await purchaseCardUpgrade(sessionId, cardId);
+    if (sessionData) {
+      useGameStore.setState({ player: sessionData.player, grid: sessionData.grid });
+      setShopMode('MAIN');
+    }
+  };
+
+  const handleRelicPurchase = async () => {
+    // Hardcoded for now. A real implementation would pick 3 random relics to offer.
+    const sessionData = await purchaseRelic(sessionId, 'MITHRIL_COIN', 150);
+    if (sessionData) {
+      useGameStore.setState({ player: sessionData.player, grid: sessionData.grid });
     }
   };
 
@@ -58,29 +86,101 @@ export default function ShopView() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div 
-            onClick={() => handlePurchase('REVEAL')}
-            className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group"
-          >
-            <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Reveal Map</h3>
-            <p className="text-xs text-zinc-500 mb-4">Instantly reveals 3 random hidden hexes.</p>
-            <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold">
-              <Zap className="w-4 h-4" /> 25g
+        {shopMode === 'MAIN' ? (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <div 
+              onClick={() => handlePurchase('REVEAL')}
+              className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Reveal Map</h3>
+              <p className="text-xs text-zinc-500 mb-4 flex-grow">Instantly reveals 3 random hidden hexes.</p>
+              <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold mt-auto">
+                <Zap className="w-4 h-4" /> 25g
+              </div>
             </div>
-          </div>
 
-          <div 
-            onClick={() => handlePurchase('HEAL')}
-            className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group"
-          >
-            <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Heal 25 HP</h3>
-            <p className="text-xs text-zinc-500 mb-4">A refreshing health potion.</p>
-            <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold">
-              <Zap className="w-4 h-4" /> 40g
+            <div 
+              onClick={() => handlePurchase('HEAL')}
+              className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Health Potion</h3>
+              <p className="text-xs text-zinc-500 mb-4 flex-grow">Restores 25 HP.</p>
+              <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold mt-auto">
+                <Zap className="w-4 h-4" /> 40g
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setShopMode('REMOVE')}
+              className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Trash2 className="w-4 h-4 text-zinc-400 group-hover:text-yellow-500" />
+                <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Remove Card</h3>
+              </div>
+              <p className="text-xs text-zinc-500 mb-4 flex-grow">Thin your deck by permanently destroying a card.</p>
+              <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold mt-auto">
+                <Zap className="w-4 h-4" /> 50g
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setShopMode('UPGRADE')}
+              className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-yellow-500/50 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <ArrowUpCircle className="w-4 h-4 text-zinc-400 group-hover:text-yellow-500" />
+                <h3 className="font-bold text-zinc-100 group-hover:text-yellow-500 transition-colors">Upgrade Card</h3>
+              </div>
+              <p className="text-xs text-zinc-500 mb-4 flex-grow">Permanently upgrade a card's power.</p>
+              <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold mt-auto">
+                <Zap className="w-4 h-4" /> 75g
+              </div>
+            </div>
+
+            {!player.relics?.includes('MITHRIL_COIN') && (
+              <div 
+                onClick={handleRelicPurchase}
+                className="col-span-2 p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/50 transition-all cursor-pointer group flex items-center justify-between"
+              >
+                <div>
+                  <h3 className="font-black text-yellow-500 flex items-center gap-2">
+                    <Shield className="w-4 h-4" /> Mithril Coin
+                  </h3>
+                  <p className="text-xs text-zinc-400">Relic. Max HP increases when you gain gold.</p>
+                </div>
+                <div className="flex items-center gap-2 text-yellow-500 font-mono font-bold">
+                  <Zap className="w-4 h-4" /> 150g
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-zinc-100">
+                {shopMode === 'REMOVE' ? 'Select a card to destroy:' : 'Select a card to upgrade:'}
+              </h3>
+              <button onClick={() => setShopMode('MAIN')} className="text-sm text-zinc-400 hover:text-white">
+                Cancel
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 max-h-[400px] overflow-y-auto p-2">
+              {player.deck.map((c) => (
+                <div 
+                  key={c.id} 
+                  className="cursor-pointer hover:scale-105 transition-transform"
+                >
+                  <CardComponent 
+                    card={c} 
+                    selected={false} 
+                    onClick={() => shopMode === 'REMOVE' ? handleCardRemoval(c.id) : handleCardUpgrade(c.id)} 
+                  />
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
         <div className="flex justify-between items-center pt-6 border-t border-zinc-800">
           <div className="flex items-center gap-2">

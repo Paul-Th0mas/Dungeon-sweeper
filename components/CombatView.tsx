@@ -2,18 +2,17 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import CardComponent from './Card';
-import { evaluateElementalHand } from '@/lib/combatEngine';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sword, RotateCcw, Skull, Flame, Snowflake, Zap, Wind } from 'lucide-react';
+import { Sword, RotateCcw, Skull, Flame, Snowflake, Zap, Wind, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { StatusEffect, CardElement } from '@/lib/types';
+import { useEffect, useState } from 'react';
 
-// ── Element styling ────────────────────────────────────────────────────────────
-const ELEMENT_STYLES: Record<CardElement, { color: string; glow: string; icon: React.ElementType }> = {
-  FIRE:        { color: 'text-orange-400', glow: 'rgba(249,115,22,0.3)',  icon: Flame },
-  ICE:         { color: 'text-sky-400',    glow: 'rgba(56,189,248,0.3)',  icon: Snowflake },
-  ELECTRICITY: { color: 'text-yellow-400', glow: 'rgba(250,204,21,0.3)', icon: Zap },
-  WIND:        { color: 'text-emerald-400', glow: 'rgba(52,211,153,0.3)', icon: Wind },
+const ELEMENT_STYLES: Record<CardElement, { color: string; bg: string; icon: React.ElementType }> = {
+  FIRE:        { color: 'text-orange-400', bg: 'bg-orange-900/50 border-orange-500/50',  icon: Flame },
+  ICE:         { color: 'text-sky-400',    bg: 'bg-sky-900/50 border-sky-500/50',  icon: Snowflake },
+  ELECTRICITY: { color: 'text-yellow-400', bg: 'bg-yellow-900/50 border-yellow-500/50', icon: Zap },
+  WIND:        { color: 'text-emerald-400', bg: 'bg-emerald-900/50 border-emerald-500/50', icon: Wind },
 };
 
 const STATUS_STYLES: Record<StatusEffect['type'], { color: string; icon: React.ElementType; bg: string }> = {
@@ -24,241 +23,387 @@ const STATUS_STYLES: Record<StatusEffect['type'], { color: string; icon: React.E
 };
 
 export default function CombatView() {
-  const { combatState, player, lastSpell, selectCard, deselectCard, playHand, discardHand } = useGameStore();
+  const { combatState, player, lastClash, selectCard, deselectCard, playQueue, discardHand, clearLastClash } = useGameStore();
+  const [animationPhase, setAnimationPhase] = useState<'NONE' | 'CLASHING' | 'SPELLS' | 'SUMMARY'>('NONE');
+  const [animatingFrame, setAnimatingFrame] = useState(0);
+  const [animatingSpellIndex, setAnimatingSpellIndex] = useState(0);
+  const [displayedEnemyHp, setDisplayedEnemyHp] = useState(0);
 
-  if (!combatState || !combatState.enemy || !player) return null;
+  useEffect(() => {
+    if (lastClash && lastClash.frames.length > 0) {
+      setAnimationPhase('CLASHING');
+      setAnimatingFrame(0);
+      setAnimatingSpellIndex(0);
+      setDisplayedEnemyHp(lastClash.enemyHpAtStart);
+    } else {
+      setAnimationPhase('NONE');
+      if (combatState?.enemy) {
+        setDisplayedEnemyHp(combatState.enemy.currentHp);
+      }
+    }
+  }, [lastClash, combatState?.enemy]);
 
-  const { enemy, hand, selectedCards, discardsRemaining, handsRemaining } = combatState;
+  // Handle phases
+  useEffect(() => {
+    if (animationPhase === 'CLASHING') {
+      const interval = setInterval(() => {
+        setAnimatingFrame(prev => {
+          const currentFrame = lastClash!.frames[prev];
+          if (currentFrame) {
+            setDisplayedEnemyHp(currentFrame.enemyHpAfter);
+          }
+          
+          const isEnemyDefeated = currentFrame && currentFrame.enemyHpAfter <= 0;
 
-  // Live preview using the combat engine (client-side only — server validates on submit)
-  const preview = evaluateElementalHand(
-    selectedCards,
-    player.class,
-    player.passives
-  );
+          if (prev >= lastClash!.frames.length - 1 || isEnemyDefeated) {
+            clearInterval(interval);
+            if (isEnemyDefeated) {
+              setAnimationPhase('SUMMARY');
+            } else if (lastClash!.spellsTriggered.length > 0) {
+              setAnimationPhase('SPELLS');
+            } else {
+              setAnimationPhase('SUMMARY');
+            }
+            return prev + 1;
+          }
+          return prev + 1;
+        });
+      }, 800);
+      return () => clearInterval(interval);
+    }
 
-  const dominantEl = preview.dominantElement !== 'HYBRID' ? preview.dominantElement : 'FIRE';
-  const elStyle = ELEMENT_STYLES[dominantEl as CardElement];
-  const ElIcon = elStyle.icon;
+    if (animationPhase === 'SPELLS') {
+      const interval = setInterval(() => {
+        setAnimatingSpellIndex(prev => {
+          if (prev >= lastClash!.spellsTriggered.length - 1) {
+            clearInterval(interval);
+            setAnimationPhase('SUMMARY');
+            return prev + 1;
+          }
+          return prev + 1;
+        });
+      }, 2000); // 2 seconds per spell animation
+      return () => clearInterval(interval);
+    }
+  }, [animationPhase, lastClash]);
 
+  if (!combatState || !combatState.enemy || !player) {
+    return <div className="flex items-center justify-center h-screen bg-zinc-950 text-white">Loading Combat State...</div>;
+  }
+
+  const { enemy, hand, playerQueue, enemyQueue, enemyQueueRevealed, queueSlots, maxVigor, currentVigor } = combatState;
   const statusEffects: StatusEffect[] = enemy.statusEffects ?? [];
 
   return (
-    <div className="relative flex flex-col items-center justify-between w-full h-screen overflow-hidden py-10 px-4 bg-zinc-950">
-      {/* Dynamic background glow matching dominant element */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={dominantEl}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse at 50% 0%, ${elStyle.glow} 0%, transparent 55%)` }}
-        />
-      </AnimatePresence>
-
-      {/* Enemy Section */}
-      <motion.div
-        initial={{ y: -80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="flex flex-col items-center gap-4 w-full max-w-2xl z-10"
-      >
-        <motion.div
-          animate={{ y: [0, -8, 0] }}
-          transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
-          className="p-5 bg-zinc-900/50 border border-red-900/30 rounded-full shadow-[0_0_50px_rgba(239,68,68,0.1)] backdrop-blur-md"
-        >
-          <Skull className="w-14 h-14 text-red-500 fill-red-500/10" />
-        </motion.div>
-
-        <h2 className="text-2xl font-black uppercase tracking-[0.3em] text-zinc-100 italic">{enemy.name}</h2>
-
-        {/* Enemy HP Bar */}
-        <div className="w-full max-w-md flex flex-col gap-1">
-          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
-            <span className="text-red-500">Integrity</span>
-            <span className="text-zinc-400 font-mono">{enemy.currentHp} / {enemy.maxHp}</span>
+    <div className="relative flex flex-col items-center justify-between w-full h-screen overflow-hidden py-6 px-4 bg-zinc-950">
+      
+      {/* ── Elemental Counters Panel ── */}
+      <div className="absolute top-6 left-6 flex flex-col gap-2 p-4 bg-zinc-900/40 border border-white/5 rounded-2xl backdrop-blur-md z-10 pointer-events-none hidden sm:flex">
+        <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-1 text-center">Element Advantages</span>
+        <div className="flex flex-col gap-2">
+          {/* Wind beats Fire */}
+          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
+            <Wind className="w-4 h-4 text-emerald-400" />
+            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
+            <Flame className="w-4 h-4 text-orange-400" />
           </div>
-          <div className="w-full h-3 bg-zinc-900 rounded-full border border-white/5 p-[2px] overflow-hidden">
-            <motion.div
-              animate={{ width: `${(enemy.currentHp / enemy.maxHp) * 100}%` }}
-              className="h-full bg-gradient-to-r from-red-800 to-red-500 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.5)]"
-            />
+          {/* Fire beats Elec */}
+          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
+            <Flame className="w-4 h-4 text-orange-400" />
+            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
+            <Zap className="w-4 h-4 text-yellow-400" />
+          </div>
+          {/* Elec beats Ice */}
+          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
+            <Zap className="w-4 h-4 text-yellow-400" />
+            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
+            <Snowflake className="w-4 h-4 text-sky-400" />
+          </div>
+          {/* Ice beats Wind */}
+          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
+            <Snowflake className="w-4 h-4 text-sky-400" />
+            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
+            <Wind className="w-4 h-4 text-emerald-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Enemy Section ── */}
+      <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col items-center gap-3 w-full max-w-2xl z-10">
+        <div className="flex items-center gap-4">
+          <motion.div
+            animate={{ y: [0, -5, 0] }}
+            transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+            className="p-4 bg-zinc-900/50 border border-red-900/30 rounded-full backdrop-blur-md"
+          >
+            <Skull className="w-10 h-10 text-red-500" />
+          </motion.div>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xl font-black uppercase tracking-widest text-zinc-100 italic">{enemy.name}</h2>
+            {/* Enemy HP as Vigor for now */}
+            <div className="w-48 h-3 bg-zinc-900 rounded-full border border-white/5 p-[2px] overflow-hidden">
+              <motion.div
+                animate={{ width: `${(displayedEnemyHp / enemy.maxHp) * 100}%` }}
+                className="h-full bg-gradient-to-r from-red-800 to-red-500 rounded-full"
+              />
+            </div>
+            <div className="text-[10px] text-zinc-400 font-mono text-right">{displayedEnemyHp} / {enemy.maxHp} HP</div>
           </div>
         </div>
 
-        {/* Active Status Effects on Enemy */}
+        {/* Status Effects */}
         {statusEffects.length > 0 && (
           <div className="flex flex-wrap gap-2 justify-center">
             {statusEffects.map((effect, i) => {
               const s = STATUS_STYLES[effect.type];
               const SIcon = s.icon;
               return (
-                <motion.div
-                  key={i}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${s.bg} ${s.color}`}
-                >
-                  <SIcon className="w-3 h-3" />
-                  {effect.label}
-                </motion.div>
+                <span key={i} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold ${s.bg} ${s.color}`}>
+                  <SIcon className="w-3 h-3" /> {effect.label}
+                </span>
               );
             })}
           </div>
         )}
 
-        {/* Last spell resolved (shown briefly) */}
-        {lastSpell && lastSpell.damage > 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-xs text-zinc-500 italic"
-          >
-            Last: <span className={elStyle.color}>{lastSpell.spellName}</span> — {lastSpell.damage} dmg
-          </motion.div>
-        )}
+        {/* Enemy Intent Queue */}
+        <div className="mt-2 flex flex-col items-center">
+          <span className="text-[10px] text-red-400/70 font-black uppercase tracking-widest mb-1">Enemy Intent</span>
+          <div className="flex gap-2">
+            {enemyQueue.map((el, i) => {
+              const isRevealed = enemyQueueRevealed;
+              const style = isRevealed ? ELEMENT_STYLES[el] : null;
+              const Icon = style?.icon;
+              return (
+                <div key={i} className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center shadow-lg ${isRevealed ? style!.bg : 'bg-zinc-800 border-zinc-700'}`}>
+                  {isRevealed && Icon ? <Icon className={`w-6 h-6 ${style.color}`} /> : <span className="text-zinc-600 font-bold">?</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </motion.div>
 
-      {/* Spell Preview Panel */}
-      <div className="flex flex-col items-center gap-6 w-full max-w-4xl z-20">
-        <motion.div layout className="glass p-6 rounded-[2rem] flex flex-col items-center min-w-[380px] relative overflow-hidden">
-          <motion.div
-            animate={{ opacity: [0.04, 0.1, 0.04], scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 3 }}
-            className="absolute inset-0 rounded-full blur-[80px]"
-            style={{ background: elStyle.glow }}
-          />
-
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={preview.spellName}
-              initial={{ y: 16, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -16, opacity: 0 }}
-              className="flex flex-col items-center relative z-10 w-full"
-            >
-              <div className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">
-                {selectedCards.length > 0 ? 'Spell Detected' : 'Select Cards'}
-              </div>
-
-              <div className={clsx('text-3xl font-black uppercase tracking-tight italic mb-1', preview.damage > 0 ? elStyle.color : 'text-zinc-700')}>
-                {preview.damage > 0 ? preview.spellName : 'Awaiting Strategy'}
-              </div>
-
-              {preview.damage > 0 && (
-                <p className="text-zinc-500 text-xs text-center max-w-xs mb-3">{preview.description}</p>
+      {/* ── Clash Animation Area ── */}
+      <div className="flex-1 w-full flex flex-col items-center justify-center relative">
+        {animationPhase !== 'NONE' && lastClash ? (
+          <div className="flex flex-col items-center gap-4 p-6 glass rounded-2xl border border-white/10 w-full max-w-2xl relative overflow-hidden">
+            
+            {/* Dynamic Background during Spells */}
+            <AnimatePresence>
+              {animationPhase === 'SPELLS' && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }} 
+                  className="absolute inset-0 bg-gradient-to-tr from-orange-900/40 via-red-900/40 to-yellow-900/40 z-0" 
+                />
               )}
+            </AnimatePresence>
 
-              {/* Damage breakdown */}
-              <div className="flex items-center gap-6 mt-1">
-                <div className="flex flex-col items-center">
-                  <span className="text-3xl font-black text-blue-400 font-mono">{preview.baseDamage}</span>
-                  <span className="text-[10px] text-zinc-500 uppercase mt-0.5">Base</span>
-                </div>
-                <div className="text-xl font-black text-zinc-700">×</div>
-                <div className="flex flex-col items-center">
-                  <span className="text-3xl font-black text-red-500 font-mono">{preview.multiplier.toFixed(1)}</span>
-                  <span className="text-[10px] text-zinc-500 uppercase mt-0.5">Mult</span>
-                </div>
-                {preview.damage > 0 && (
-                  <>
-                    <div className="text-xl font-black text-zinc-700">=</div>
-                    <div className="flex flex-col items-center">
-                      <span className={`text-3xl font-black font-mono ${elStyle.color}`}>{preview.damage}</span>
-                      <span className="text-[10px] text-zinc-500 uppercase mt-0.5">Total</span>
+            <h3 className="text-xl font-black uppercase text-zinc-300 italic tracking-widest mb-4 z-10">
+              {animationPhase === 'CLASHING' ? 'Clashing...' : animationPhase === 'SPELLS' ? 'Spell Triggered!' : displayedEnemyHp <= 0 ? 'Enemy Defeated!' : 'Clash Complete'}
+            </h3>
+            
+            <div className="z-10 w-full flex justify-center min-h-[120px] items-center">
+              {animationPhase === 'CLASHING' && animatingFrame < lastClash.frames.length ? (
+                // Show current frame clashing
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={animatingFrame}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 1.2, opacity: 0 }}
+                    className="flex items-center gap-12"
+                  >
+                    {/* Player Side */}
+                    <div className="flex flex-col items-center gap-2">
+                      {lastClash.frames[animatingFrame].playerCard ? (
+                        <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement]?.bg || ""}`}>
+                          {(() => {
+                             const style = ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement];
+const Icon = style?.icon || Sword;
+                             return <Icon className={`w-8 h-8 ${style?.color || ""}`} />;
+                          })()}
+                        </div>
+                      ) : (
+                         <div className="w-16 h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
+                      )}
+                      <span className="text-xs text-green-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToEnemy}</span>
                     </div>
-                  </>
-                )}
-              </div>
 
-              {/* Extra effects preview */}
-              {preview.newStatusEffects.length > 0 && (
-                <div className="flex gap-2 mt-3 flex-wrap justify-center">
-                  {preview.newStatusEffects.map((eff, i) => {
-                    const s = STATUS_STYLES[eff.type];
-                    const SIcon = s.icon;
-                    return (
-                      <span key={i} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color}`}>
-                        <SIcon className="w-3 h-3" /> {eff.label}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              {preview.extraDraws > 0 && (
-                <div className="text-[10px] text-emerald-400 font-bold mt-2">+{preview.extraDraws} card draws</div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </motion.div>
+                    {/* Clash Text */}
+                    <div className="text-2xl font-black text-zinc-500 uppercase italic">VS</div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4">
-          <button
-            onClick={playHand}
-            disabled={selectedCards.length === 0}
-            className="group relative flex items-center gap-3 px-10 py-4 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-105 active:scale-95 disabled:hover:scale-100"
-          >
-            <Sword className="w-5 h-5" />
-            <span>Cast ({handsRemaining})</span>
-            <div className="absolute -top-3 left-0 right-0 flex justify-center gap-1">
-              {Array.from({ length: handsRemaining }).map((_, i) => (
-                <div key={i} className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-              ))}
+                    {/* Enemy Side */}
+                    <div className="flex flex-col items-center gap-2">
+                       {lastClash.frames[animatingFrame].enemyElement ? (
+                        <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement]?.bg || ""}`}>
+                          {(() => {
+                             const estyle = ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement];
+const Icon = estyle?.icon || Shield;
+                             return <Icon className={`w-8 h-8 ${estyle?.color || ""}`} />;
+                          })()}
+                        </div>
+                      ) : (
+                         <div className="w-16 h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
+                      )}
+                      <span className="text-xs text-red-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToPlayer}</span>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              ) : animationPhase === 'SPELLS' && animatingSpellIndex < lastClash.spellsTriggered.length ? (
+                // Show combo sequence visualization
+                <AnimatePresence mode="wait">
+                   <motion.div
+                     key={animatingSpellIndex}
+                     initial={{ scale: 0.5, opacity: 0, y: 20 }}
+                     animate={{ scale: [1.2, 1], opacity: 1, y: 0 }}
+                     exit={{ scale: 1.5, opacity: 0, filter: 'blur(10px)' }}
+                     transition={{ duration: 0.8 }}
+                     className="flex flex-col items-center justify-center py-4"
+                   >
+                     <motion.h1 
+                       className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 italic uppercase tracking-[0.2em] drop-shadow-[0_0_30px_rgba(255,165,0,0.8)] text-center"
+                     >
+                       {lastClash.spellsTriggered[animatingSpellIndex]}
+                     </motion.h1>
+                     <motion.p className="text-xl text-white mt-4 font-bold tracking-widest uppercase opacity-80">
+                       Combo Executed!
+                     </motion.p>
+                   </motion.div>
+                 </AnimatePresence>
+              ) : animationPhase === 'SUMMARY' ? (
+                // Summary
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center gap-2">
+                  <p className="text-sm text-zinc-400">{lastClash.description}</p>
+                  <div className="flex gap-4 mt-2">
+                     <div className="text-green-400 font-black">Dealt: {lastClash.totalEnemyDamage} dmg</div>
+                     <div className="text-red-400 font-black">Received: {lastClash.totalPlayerDamage} dmg</div>
+                  </div>
+                  <button
+                    onClick={clearLastClash}
+                    className="mt-6 px-8 py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all hover:scale-105 active:scale-95"
+                  >
+                    Continue
+                  </button>
+                </motion.div>
+              ) : null}
             </div>
-          </button>
+          </div>
+        ) : (
+          // Planning Interface: Player Queue
+          <div className="flex flex-col items-center w-full max-w-4xl z-20">
+            <span className="text-sm text-zinc-400 font-black uppercase tracking-[0.3em] mb-4">Your Sequence</span>
+            <div className="flex gap-4">
+              {Array.from({ length: queueSlots }).map((_, i) => {
+                const card = playerQueue[i];
+                return (
+                  <div key={i} className={`w-20 h-28 rounded-xl border-2 flex items-center justify-center transition-all ${card ? 'bg-zinc-800 border-zinc-600 scale-105' : 'bg-zinc-900/40 border-white/5 border-dashed'}`}>
+                    {card ? (
+                       <div className="flex flex-col items-center">
+                          {(() => {
+                             const elStyle = ELEMENT_STYLES[card.element as CardElement];
+                             const Icon = elStyle.icon;
+                             return <Icon className={`w-10 h-10 ${elStyle.color} drop-shadow-md`} />;
+                          })()}
+                       </div>
+                    ) : (
+                       <span className="text-zinc-600 font-bold opacity-30 text-2xl">{i + 1}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-          <button
-            onClick={discardHand}
-            disabled={selectedCards.length === 0 || discardsRemaining <= 0}
-            className="flex items-center gap-3 px-10 py-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-zinc-400 font-black uppercase tracking-[0.2em] rounded-2xl border border-white/5 transition-all hover:scale-105 active:scale-95"
-          >
-            <RotateCcw className="w-5 h-5" />
-            <span>Discard ({discardsRemaining})</span>
-          </button>
-        </div>
+            {/* Action Buttons */}
+            <div className="flex gap-4 mt-10">
+              <button
+                onClick={playQueue}
+                disabled={playerQueue.length === 0}
+                className="flex items-center gap-3 px-10 py-4 bg-green-500 hover:bg-green-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-105 active:scale-95"
+              >
+                <Sword className="w-5 h-5" />
+                <span>Execute Sequence</span>
+              </button>
+
+              <button
+                onClick={() => {
+                   // Quickly deselect all by clicking them out of queue (we can just loop or refresh)
+                   // But since store only supports deselectCard individually, we can just clear them or let them discard.
+                   // Actually, discardHand is available.
+                   discardHand();
+                }}
+                disabled={playerQueue.length === 0}
+                className="flex items-center gap-3 px-8 py-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-zinc-400 font-black uppercase tracking-[0.2em] rounded-2xl border border-white/5 transition-all hover:scale-105"
+              >
+                <RotateCcw className="w-5 h-5" />
+                <span>Clear / Discard</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Player Hand */}
-      <div className="flex flex-col items-center gap-4 w-full z-10">
-        {/* Player HP */}
-        <div className="flex flex-col gap-1 w-full max-w-sm">
-          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
-            <span className="text-green-500">Player</span>
-            <span className="text-zinc-400 font-mono">{player.currentHp} / {player.maxHp}</span>
+      {/* ── Player Section & Hand ── */}
+      <div className="flex flex-col items-center gap-4 w-full z-10 pb-4">
+        {/* Player Stats (Vigor & HP) */}
+        <div className="flex gap-6 w-full max-w-md bg-zinc-900/50 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
+          {/* Vigor */}
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
+              <span className="text-blue-400 flex items-center gap-1"><Shield className="w-3 h-3"/> Vigor</span>
+              <span className="text-zinc-400 font-mono">{currentVigor} / {maxVigor}</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
+              <motion.div
+                animate={{ width: `${(currentVigor / maxVigor) * 100}%` }}
+                className="h-full bg-gradient-to-r from-blue-700 to-blue-400"
+              />
+            </div>
           </div>
-          <div className="w-full h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
-            <motion.div
-              animate={{ width: `${(player.currentHp / player.maxHp) * 100}%` }}
-              className="h-full bg-gradient-to-r from-green-700 to-green-400"
-            />
+          {/* HP / Inner Injuries */}
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
+              <span className="text-green-500">Health</span>
+              <span className="text-zinc-400 font-mono">{player.currentHp} / {player.maxHp}</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
+              <motion.div
+                animate={{ width: `${(player.currentHp / player.maxHp) * 100}%` }}
+                className="h-full bg-gradient-to-r from-green-700 to-green-400"
+              />
+            </div>
           </div>
         </div>
 
         {/* Hand */}
-        <div className="flex flex-wrap justify-center gap-2 perspective-1000">
+        <div className="flex flex-wrap justify-center gap-2 perspective-1000 mt-2">
           <AnimatePresence mode="popLayout">
-            {hand.map((card, i) => (
-              <motion.div
-                key={card.id}
-                initial={{ opacity: 0, y: 50, rotateX: 45 }}
-                animate={{ opacity: 1, y: 0, rotateX: 0 }}
-                transition={{ delay: i * 0.04 }}
-              >
-                <CardComponent
-                  card={card}
-                  selected={!!selectedCards.find((c) => c.id === card.id)}
-                  onClick={() => {
-                    if (selectedCards.find((c) => c.id === card.id)) {
-                      deselectCard(card);
-                    } else {
-                      selectCard(card);
-                    }
-                  }}
-                />
-              </motion.div>
-            ))}
+            {hand.map((card, i) => {
+              const isSelected = !!playerQueue.find((c) => c.id === card.id);
+              return (
+                <motion.div
+                  key={card.id}
+                  initial={{ opacity: 0, y: 50 }}
+                  animate={{ opacity: isSelected ? 0.3 : 1, y: 0, scale: isSelected ? 0.9 : 1 }}
+                  transition={{ delay: i * 0.04 }}
+                  className={isSelected ? 'pointer-events-none' : ''}
+                >
+                  <CardComponent
+                    card={card}
+                    selected={isSelected}
+                    onClick={() => {
+                      if (isSelected) {
+                        deselectCard(card);
+                      } else {
+                        selectCard(card);
+                      }
+                    }}
+                  />
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       </div>

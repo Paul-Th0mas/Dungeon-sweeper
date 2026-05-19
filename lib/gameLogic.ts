@@ -1,37 +1,118 @@
-import { AxialCoord, Tile, TileType, Card, CardElement, CardRank, Enemy, PlayerClass } from './types';
+import { AxialCoord, Tile, TileType, Card, CardElement, Enemy, PlayerClass } from './types';
 import { getNeighbors, coordToString } from './hexMath';
 import { shuffle } from 'lodash';
 
 // ── Deck Generation ───────────────────────────────────────────────────────────
 
 /**
- * Class-specific element distribution.
- * Values are how many cards of each element appear in a 52-card deck.
+ * Durability helper.
+ * rank 2-5  → infinite basic attacks (999 uses, never break)
+ * rank 6-9  → standard spells (4 uses)
+ * rank 10-13 → limited spells (3 uses)
+ * rank 14   → Ace legendary (2 uses, isExhaust)
  */
-const CLASS_DECKS: Record<PlayerClass, Record<CardElement, number>> = {
-  BERSERKER: { FIRE: 20, ELECTRICITY: 15, ICE: 10, WIND: 7  }, // Aggressive, high damage
-  PALADIN:   { ICE: 20,  FIRE: 15,  WIND: 10, ELECTRICITY: 7 }, // Control + sustain
-  WIZARD:    { ELECTRICITY: 20, FIRE: 15, ICE: 10, WIND: 7   }, // Chain combo machine
-  OVERSEER:  { WIND: 20, ICE: 15, ELECTRICITY: 10, FIRE: 7   }, // Utility and draws
+function durabilityFor(rank: number): { maxUses: number; isExhaust: boolean } {
+  if (rank <= 5)  return { maxUses: 999, isExhaust: false };
+  if (rank <= 9)  return { maxUses: 4,   isExhaust: false };
+  if (rank <= 13) return { maxUses: 3,   isExhaust: false };
+  return           { maxUses: 2,   isExhaust: true  }; // Ace — exhaust after all uses
+}
+
+interface DeckEntry { element: CardElement; rank: number; }
+
+/**
+ * Class-specific starter loadouts (20–28 cards with explicit ranks).
+ * Low-rank cards = infinite basic attacks.
+ * High-rank cards = rare limited spells.
+ */
+const CLASS_KITS: Record<PlayerClass, DeckEntry[]> = {
+  BERSERKER: [
+    // Core: 8 Basic Fire attacks (infinite)
+    { element: 'FIRE', rank: 2 }, { element: 'FIRE', rank: 3 },
+    { element: 'FIRE', rank: 4 }, { element: 'FIRE', rank: 5 },
+    { element: 'FIRE', rank: 2 }, { element: 'FIRE', rank: 3 },
+    { element: 'FIRE', rank: 4 }, { element: 'FIRE', rank: 5 },
+    // Standard Fire spells
+    { element: 'FIRE', rank: 7 }, { element: 'FIRE', rank: 8 },
+    { element: 'FIRE', rank: 9 }, { element: 'FIRE', rank: 9 },
+    // Limited Fire power
+    { element: 'FIRE', rank: 11 }, { element: 'FIRE', rank: 12 },
+    // Legendary Fire (Exhaust)
+    { element: 'FIRE', rank: 14 },
+    // Support Electricity
+    { element: 'ELECTRICITY', rank: 3 }, { element: 'ELECTRICITY', rank: 7 },
+    { element: 'ELECTRICITY', rank: 10 },
+    // Utility Ice & Wind
+    { element: 'ICE',  rank: 4 }, { element: 'WIND', rank: 3 },
+  ],
+  PALADIN: [
+    // Core: 8 Basic Ice attacks (infinite)
+    { element: 'ICE', rank: 2 }, { element: 'ICE', rank: 3 },
+    { element: 'ICE', rank: 4 }, { element: 'ICE', rank: 5 },
+    { element: 'ICE', rank: 2 }, { element: 'ICE', rank: 3 },
+    { element: 'ICE', rank: 4 }, { element: 'ICE', rank: 5 },
+    // Standard Ice spells
+    { element: 'ICE', rank: 7 }, { element: 'ICE', rank: 8 },
+    { element: 'ICE', rank: 9 }, { element: 'ICE', rank: 9 },
+    // Limited Ice power
+    { element: 'ICE', rank: 11 }, { element: 'ICE', rank: 12 },
+    // Legendary Ice (Exhaust)
+    { element: 'ICE', rank: 14 },
+    // Support Fire
+    { element: 'FIRE', rank: 3 }, { element: 'FIRE', rank: 8 },
+    // Utility Wind
+    { element: 'WIND', rank: 3 }, { element: 'WIND', rank: 7 },
+    // One Electricity
+    { element: 'ELECTRICITY', rank: 4 },
+  ],
+  WIZARD: [
+    // Core: 8 Basic Electricity attacks (infinite)
+    { element: 'ELECTRICITY', rank: 2 }, { element: 'ELECTRICITY', rank: 3 },
+    { element: 'ELECTRICITY', rank: 4 }, { element: 'ELECTRICITY', rank: 5 },
+    { element: 'ELECTRICITY', rank: 2 }, { element: 'ELECTRICITY', rank: 3 },
+    { element: 'ELECTRICITY', rank: 4 }, { element: 'ELECTRICITY', rank: 5 },
+    // Standard Electricity spells
+    { element: 'ELECTRICITY', rank: 7 }, { element: 'ELECTRICITY', rank: 8 },
+    { element: 'ELECTRICITY', rank: 9 },
+    // Limited Electricity power
+    { element: 'ELECTRICITY', rank: 11 }, { element: 'ELECTRICITY', rank: 13 },
+    // Legendary Electricity (Exhaust)
+    { element: 'ELECTRICITY', rank: 14 },
+    // Support Fire
+    { element: 'FIRE', rank: 3 }, { element: 'FIRE', rank: 8 },
+    { element: 'FIRE', rank: 10 },
+    // Utility Ice & Wind
+    { element: 'ICE',  rank: 3 }, { element: 'WIND', rank: 3 },
+    { element: 'WIND', rank: 7 },
+  ],
+  OVERSEER: [
+    // Core: 8 Basic Wind attacks (infinite)
+    { element: 'WIND', rank: 2 }, { element: 'WIND', rank: 3 },
+    { element: 'WIND', rank: 4 }, { element: 'WIND', rank: 5 },
+    { element: 'WIND', rank: 2 }, { element: 'WIND', rank: 3 },
+    { element: 'WIND', rank: 4 }, { element: 'WIND', rank: 5 },
+    // Standard Wind spells
+    { element: 'WIND', rank: 7 }, { element: 'WIND', rank: 8 },
+    { element: 'WIND', rank: 9 }, { element: 'WIND', rank: 9 },
+    // Limited Wind power
+    { element: 'WIND', rank: 11 }, { element: 'WIND', rank: 12 },
+    // Legendary Wind (Exhaust)
+    { element: 'WIND', rank: 14 },
+    // Support Ice
+    { element: 'ICE',  rank: 3 }, { element: 'ICE',  rank: 8 },
+    { element: 'ICE',  rank: 10 },
+    // Utility Fire & Electricity
+    { element: 'FIRE', rank: 3 }, { element: 'ELECTRICITY', rank: 4 },
+    { element: 'ELECTRICITY', rank: 7 },
+  ],
 };
 
-const RANKS: CardRank[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-
-export function generateDeck(playerClass: PlayerClass = 'BERSERKER'): Card[] {
-  const distribution = CLASS_DECKS[playerClass];
-  const deck: Card[] = [];
-
-  for (const [element, count] of Object.entries(distribution) as [CardElement, number][]) {
-    const shuffledRanks = shuffle([...RANKS]);
-    for (let i = 0; i < count; i++) {
-      deck.push({
-        id: Math.random().toString(36).substr(2, 9),
-        element,
-        rank: shuffledRanks[i % RANKS.length],
-      });
-    }
-  }
-  return shuffle(deck);
+export function generateDeck(playerClass: PlayerClass = 'BERSERKER'): (DeckEntry & { maxUses: number; currentUses: number; isExhaust: boolean })[] {
+  const kit = CLASS_KITS[playerClass];
+  return shuffle(kit.map((entry) => {
+    const { maxUses, isExhaust } = durabilityFor(entry.rank);
+    return { ...entry, maxUses, currentUses: maxUses, isExhaust };
+  }));
 }
 
 // ── Grid Generation ───────────────────────────────────────────────────────────
@@ -72,7 +153,6 @@ export function generateGrid(radius: number): Record<string, Tile> {
   placeTiles('REST',    1);
   placeTiles('TREASURE', 1);
   placeTiles('EVENT',   2);
-  placeTiles('KEY',     1);
   placeTiles('EXIT',    1);
 
   // Compute danger numbers
@@ -171,8 +251,6 @@ export function getRandomEnemy(floor: number): Enemy {
     name: template.name,
     maxHp: template.hpBase + template.hpPerFloor * (floor - 1),
     currentHp: template.hpBase + template.hpPerFloor * (floor - 1),
-    handsAllowed: template.handsAllowed,
-    discardsAllowed: template.discardsAllowed,
     attackDamage: template.attackBase + template.attackPerFloor * (floor - 1),
     rewardRarity: template.rarity,
     statusEffects: [],

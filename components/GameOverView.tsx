@@ -40,7 +40,7 @@ export default function GameOverView() {
         <motion.button 
           whileHover={{ scale: 1.05, boxShadow: "0 0 40px rgba(255,255,255,0.1)" }}
           whileTap={{ scale: 0.95 }}
-          onClick={initializeGame}
+          onClick={() => initializeGame('BERSERKER')}
           className="group flex items-center gap-4 px-12 py-5 bg-zinc-100 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl transition-all"
         >
           <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
