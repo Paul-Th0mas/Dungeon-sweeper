@@ -20,31 +20,31 @@ const CLASSES: Array<{
     icon: Sword,
     color: 'from-red-600 to-orange-500',
     desc: 'Aggressive melee fighter. Gains bonus damage on FIRE spells and heals on kills.',
-    focus: 'Fire & Electricity',
+    focus: 'Fire & Air',
   },
   {
     id: 'PALADIN',
     name: 'Paladin',
     icon: Shield,
     color: 'from-sky-500 to-indigo-500',
-    desc: 'Holy defender. ICE spells heal you. Freeze lasts longer.',
-    focus: 'Ice & Fire',
+    desc: 'Holy defender. WATER spells heal you. Freeze lasts longer.',
+    focus: 'Water & Fire',
   },
   {
     id: 'WIZARD',
     name: 'Wizard',
     icon: Sparkles,
     color: 'from-purple-600 to-violet-500',
-    desc: 'Master of elements. ELECTRICITY chains exponentially faster.',
-    focus: 'Electricity & Fire',
+    desc: 'Master of elements. AIR chains exponentially faster.',
+    focus: 'Air & Fire',
   },
   {
     id: 'OVERSEER',
     name: 'Overseer',
     icon: Eye,
     color: 'from-emerald-500 to-teal-500',
-    desc: 'Tactical rogue. WIND spells draw more cards and generate gold.',
-    focus: 'Wind & Ice',
+    desc: 'Tactical rogue. EARTH spells draw more cards and generate gold.',
+    focus: 'Earth & Water',
   },
 ];
 
@@ -55,19 +55,6 @@ export default function StartScreenView() {
     <div className="relative w-full h-screen overflow-hidden flex flex-col items-center justify-center bg-zinc-950 p-6">
       {/* Background elements */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-500/5 rounded-full blur-[150px] pointer-events-none" />
-
-      <motion.div
-        initial={{ y: -30, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="text-center mb-16 z-10"
-      >
-        <h1 className="text-7xl font-black uppercase tracking-tighter mb-4 text-zinc-100">
-          Dungeon <span className="text-red-500">Sweeper</span>
-        </h1>
-        <p className="text-zinc-500 font-medium tracking-widest uppercase text-sm">
-          Select your class to begin the descent
-        </p>
-      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-6xl z-10">
         {CLASSES.map((cls, i) => {

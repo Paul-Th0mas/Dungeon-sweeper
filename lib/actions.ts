@@ -7,6 +7,7 @@ import { calculateLevelUp, getEnemyRewards, getXPToNextLevel, pickLevelUpChoices
 import { AxialCoord, Tile as ClientTile, Card as ClientCard, GamePhase, PlayerClass, TileType, StatusEffect, PassiveAbility } from './types';
 import { coordToString, getDistance } from './hexMath';
 import { shuffle } from 'lodash';
+import { ALL_WILDCARDS, getWildcardInstance } from './wildcard';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ function formatSession(session: any, forceCombat: boolean = false) {
 
   const playerDeck = allCards.filter((c: any) => c.location === 'DECK');
   const playerHand = allCards.filter((c: any) => c.location === 'HAND');
+  const shopCards = allCards.filter((c: any) => c.location === 'SHOP');
 
   const currentXP = session.currentXP ?? 0;
   const level = session.level ?? 1;
@@ -108,10 +110,120 @@ function formatSession(session: any, forceCombat: boolean = false) {
     grid,
     combatState,
     pendingLevelUpChoices: session.pendingLevelUpChoices ?? null,
+    shopCards,
+    shopRerolled: session.shopRerolled ?? false,
   };
 }
 
 // ── Initialize Game ────────────────────────────────────────────────────────────
+
+export async function getRecentSessions(limit: number = 5) {
+  const sessions = await prisma.gameSession.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: limit,
+  });
+  return sessions.map(s => ({
+    id: s.id,
+    playerClass: s.playerClass,
+    level: s.level,
+    floor: s.floor,
+    updatedAt: s.updatedAt,
+  }));
+}
+
+export async function resumeSession(sessionId: string) {
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { tiles: true, deck: true },
+  });
+  if (!session) return null;
+  return formatSession(session);
+}
+
+export async function getFormattedSessionById(sessionId: string) {
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { tiles: true, deck: true },
+  });
+  if (!session) return null;
+  return formatSession(session);
+}
+
+export async function generateShopCardsForSession(sessionId: string) {
+  // Delete existing shop cards
+  await prisma.card.deleteMany({
+    where: { sessionId, location: 'SHOP' }
+  });
+
+  const elements = ['FIRE', 'WATER', 'AIR', 'EARTH'];
+
+  const getRandomCardTier = () => {
+    const r = Math.random();
+    if (r < 0.50) {
+      // Standard Rank 6-9
+      return Math.floor(Math.random() * 4) + 6;
+    } else if (r < 0.85) {
+      // Limited Rank 10-13
+      return Math.floor(Math.random() * 4) + 10;
+    } else {
+      // Legendary Rank 14
+      return 14;
+    }
+  };
+
+  const shopCardsData = [];
+
+  for (let i = 0; i < 4; i++) {
+    // 25% chance of wildcard in slot 4 (available on all floors for testing)
+    const isWildcardSlot = i === 3 && Math.random() < 0.25;
+
+    if (isWildcardSlot) {
+      const randomWildcardClass = ALL_WILDCARDS[Math.floor(Math.random() * ALL_WILDCARDS.length)];
+      const w = new randomWildcardClass();
+      shopCardsData.push({
+        element: 'FIRE' as any,
+        rank: 0,
+        maxUses: w.maxDurability,
+        currentUses: w.maxDurability,
+        isExhaust: false,
+        location: 'SHOP' as any,
+        specialModifier: {
+          isWildcard: true,
+          wildcardType: w.id,
+          name: w.name,
+          description: w.description,
+          preferredClass: w.preferredClass,
+        }
+      });
+    } else {
+      const rank = getRandomCardTier();
+      const element = elements[Math.floor(Math.random() * elements.length)];
+      let maxUses = 4;
+      let isExhaust = false;
+      if (rank <= 5) { maxUses = 999; isExhaust = false; }
+      else if (rank <= 9) { maxUses = 4; isExhaust = false; }
+      else if (rank <= 13) { maxUses = 3; isExhaust = false; }
+      else { maxUses = 2; isExhaust = true; }
+
+      shopCardsData.push({
+        element: element as any,
+        rank,
+        maxUses,
+        currentUses: maxUses,
+        isExhaust,
+        location: 'SHOP' as any,
+        specialModifier: {}
+      });
+    }
+  }
+
+  await prisma.card.createMany({
+    data: shopCardsData.map(c => ({
+      ...c,
+      sessionId
+    }))
+  });
+}
 
 export async function initializeGame(playerClass: PlayerClass = 'BERSERKER') {
   const deck = generateDeck(playerClass);
@@ -210,7 +322,7 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
     const extraHands = (session.passives.includes('BATTLE_FURY') || session.passives.includes('OVERLOAD')) ? 1 : 0;
     const extraDiscards = session.passives.includes('TACTICAL_INSIGHT') ? 1 : 0;
 
-    const elements: ('FIRE'|'ICE'|'WIND'|'ELECTRICITY')[] = ['FIRE', 'ICE', 'WIND', 'ELECTRICITY'];
+    const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
     const enemyQueue = Array.from({ length: 4 }).map(() => elements[Math.floor(Math.random() * elements.length)]);
 
     const updated = await prisma.gameSession.update({
@@ -267,9 +379,10 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
   }
 
   if (targetTile.type === 'SHOP') {
+    await generateShopCardsForSession(sessionId);
     const updated = await prisma.gameSession.update({
       where: { id: sessionId },
-      data: { phase: 'SHOP' },
+      data: { phase: 'SHOP', shopRerolled: false },
       include: { tiles: true, deck: true },
     });
     return formatSession(updated);
@@ -345,10 +458,27 @@ export async function submitQueue(sessionId: string, cardIds: string[]) {
   // 1. Tick existing status effects (BURN damage, decrement turns)
   const { tickDamage, remainingEffects, chainBonus } = tickStatusEffects(existingEffects);
 
-  // 2. Resolve Queue Clash
   const enemyQueue = (session.enemyQueue as any[]) || [];
+
+  // 1.5 Resolve wildcards in player queue
+  let resolvedPlayerQueue = [...playerQueue] as any[];
+  for (const card of playerQueue) {
+    if (card.specialModifier && (card.specialModifier as any).isWildcard) {
+      const type = (card.specialModifier as any).wildcardType;
+      const instance = getWildcardInstance(type);
+      if (instance) {
+        (instance as any).id = card.id;
+        const result = instance.applyEffect(resolvedPlayerQueue, enemyQueue, session.playerClass as PlayerClass);
+        if (result.modifiedPlayerQueue) {
+          resolvedPlayerQueue = result.modifiedPlayerQueue;
+        }
+      }
+    }
+  }
+
+  // 2. Resolve Queue Clash
   const clash = resolveQueueClash(
-    playerQueue as any,
+    resolvedPlayerQueue as any,
     enemyQueue,
     session.playerClass as PlayerClass,
     session.passives,
@@ -361,8 +491,32 @@ export async function submitQueue(sessionId: string, cardIds: string[]) {
   const newEnemyHp = Math.max(0, (session.enemyCurrentHp ?? 0) - totalEnemyDamage);
 
   // Enemy counter-attack logic via Vigor
-  let newPlayerVigor = session.currentVigor;
+  let aegisVigorGain = 0;
+  let terraStoneTriggers = 0;
+  for (const card of resolvedPlayerQueue) {
+    if (card.specialModifier && (card.specialModifier as any).isAegis) {
+      aegisVigorGain += 15;
+    }
+    if (card.specialModifier && (card.specialModifier as any).isTerraStone) {
+      terraStoneTriggers++;
+    }
+  }
+
+  let newPlayerVigor = Math.min(session.maxHp, session.currentVigor + aegisVigorGain);
   let newPlayerHp = session.currentHp;
+
+  if (terraStoneTriggers > 0) {
+    const earthDiscardCards = await prisma.card.findMany({
+      where: { sessionId, location: 'DISCARD', element: 'EARTH' },
+      take: terraStoneTriggers
+    });
+    if (earthDiscardCards.length > 0) {
+      await prisma.card.updateMany({
+        where: { id: { in: earthDiscardCards.map(c => c.id) } },
+        data: { location: 'HAND' }
+      });
+    }
+  }
   
   const frozen = isFrozen(remainingEffects);
   const pushed = isPushed(remainingEffects);
@@ -422,7 +576,7 @@ export async function submitQueue(sessionId: string, cardIds: string[]) {
   }
 
   // 9. Next turn Enemy Intent
-  const elements: ('FIRE'|'ICE'|'WIND'|'ELECTRICITY')[] = ['FIRE', 'ICE', 'WIND', 'ELECTRICITY'];
+  const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
   const newEnemyQueue = Array.from({ length: session.queueSlots }).map(() => elements[Math.floor(Math.random() * elements.length)]);
 
   // 10. Update session
@@ -454,8 +608,15 @@ export async function discardCards(sessionId: string, cardIds: string[]) {
   await prisma.card.updateMany({ where: { id: { in: cardIds } }, data: { location: 'DISCARD' } });
   await drawCards(sessionId, cardIds.length);
 
-  const updated = await prisma.gameSession.findUnique({
+  // Refresh enemy intent queue
+  const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
+  const newEnemyQueue = Array.from({ length: session.queueSlots || 4 }).map(() => elements[Math.floor(Math.random() * elements.length)]);
+
+  const updated = await prisma.gameSession.update({
     where: { id: sessionId },
+    data: {
+      enemyQueue: newEnemyQueue,
+    },
     include: { tiles: true, deck: true },
   });
   return formatSession(updated);

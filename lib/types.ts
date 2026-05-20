@@ -11,6 +11,7 @@ export interface Tile {
 }
 
 export type GamePhase =
+  | 'DASHBOARD'
   | 'EXPLORING'
   | 'COMBAT'
   | 'GAMEOVER'
@@ -24,7 +25,7 @@ export type GamePhase =
   | 'FLOOR_END';
 
 // Elemental system replacing traditional suits
-export type CardElement = 'FIRE' | 'ICE' | 'ELECTRICITY' | 'WIND';
+export type CardElement = 'FIRE' | 'WATER' | 'AIR' | 'EARTH' | 'VOID';
 // Rank 0 = Ash (broken card), 2–14 = normal play ranks
 export type CardRank = number;
 
@@ -93,15 +94,15 @@ export type PassiveAbility =
   | 'DIVINE_SHIELD'     // Block first 10 dmg per combat
   | 'HOLY_SMITE'        // Freeze lasts +1 turn
   | 'BLESSING'          // Heal 10% max HP at floor start
-  | 'SACRED_GROUND'     // ICE cards heal 3 HP each
+  | 'SACRED_GROUND'     // WATER cards heal 3 HP each
   // Wizard
-  | 'ARCANE_MASTERY'    // ELECTRICITY multipliers ×1.5
+  | 'ARCANE_MASTERY'    // AIR multipliers ×1.5
   | 'OVERLOAD'          // +1 hand per combat
   | 'MANA_SURGE'        // Every 3rd hand: double dmg
   | 'LEYLINE'           // Draw 1 extra at combat start
   // Overseer
   | 'SHADOW_STEP'       // 20% chance to dodge enemy attack
-  | 'EXPLOIT_WEAKNESS'  // WIND draw also grants +5g
+  | 'EXPLOIT_WEAKNESS'  // EARTH draw also grants +5g
   | 'TACTICAL_INSIGHT'  // +1 discard per combat
   | 'CALCULATED_RISK';  // Win at <50% HP → double gold
 

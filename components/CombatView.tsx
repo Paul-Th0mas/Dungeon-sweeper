@@ -3,23 +3,24 @@
 import { useGameStore } from '@/store/useGameStore';
 import CardComponent from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sword, RotateCcw, Skull, Flame, Snowflake, Zap, Wind, Shield } from 'lucide-react';
+import { Sword, RotateCcw, Skull, Flame, Droplets, Wind, Mountain, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { StatusEffect, CardElement } from '@/lib/types';
 import { useEffect, useState } from 'react';
 
 const ELEMENT_STYLES: Record<CardElement, { color: string; bg: string; icon: React.ElementType }> = {
   FIRE:        { color: 'text-orange-400', bg: 'bg-orange-900/50 border-orange-500/50',  icon: Flame },
-  ICE:         { color: 'text-sky-400',    bg: 'bg-sky-900/50 border-sky-500/50',  icon: Snowflake },
-  ELECTRICITY: { color: 'text-yellow-400', bg: 'bg-yellow-900/50 border-yellow-500/50', icon: Zap },
-  WIND:        { color: 'text-emerald-400', bg: 'bg-emerald-900/50 border-emerald-500/50', icon: Wind },
+  WATER:       { color: 'text-sky-400',    bg: 'bg-sky-900/50 border-sky-500/50',     icon: Droplets },
+  AIR:         { color: 'text-white',      bg: 'bg-zinc-800/50 border-zinc-500/50',   icon: Wind },
+  EARTH:       { color: 'text-amber-600',  bg: 'bg-amber-900/50 border-amber-500/50', icon: Mountain },
+  VOID:        { color: 'text-purple-400', bg: 'bg-purple-900/50 border-purple-500/50', icon: Skull },
 };
 
 const STATUS_STYLES: Record<StatusEffect['type'], { color: string; icon: React.ElementType; bg: string }> = {
   BURN:  { color: 'text-orange-400', icon: Flame,     bg: 'bg-orange-500/10 border-orange-500/20' },
-  FREEZE:{ color: 'text-sky-400',    icon: Snowflake, bg: 'bg-sky-500/10 border-sky-500/20' },
-  CHAIN: { color: 'text-yellow-400', icon: Zap,       bg: 'bg-yellow-500/10 border-yellow-500/20' },
-  PUSH:  { color: 'text-emerald-400', icon: Wind,     bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  FREEZE:{ color: 'text-sky-400',    icon: Droplets, bg: 'bg-sky-500/10 border-sky-500/20' },
+  CHAIN: { color: 'text-yellow-400', icon: Wind,       bg: 'bg-yellow-500/10 border-yellow-500/20' },
+  PUSH:  { color: 'text-emerald-400', icon: Mountain,     bg: 'bg-emerald-500/10 border-emerald-500/20' },
 };
 
 export default function CombatView() {
@@ -101,29 +102,29 @@ export default function CombatView() {
       <div className="absolute top-6 left-6 flex flex-col gap-2 p-4 bg-zinc-900/40 border border-white/5 rounded-2xl backdrop-blur-md z-10 pointer-events-none hidden sm:flex">
         <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-1 text-center">Element Advantages</span>
         <div className="flex flex-col gap-2">
-          {/* Wind beats Fire */}
+          {/* Earth beats Fire */}
           <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Wind className="w-4 h-4 text-emerald-400" />
+            <Mountain className="w-4 h-4 text-amber-600" />
             <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
             <Flame className="w-4 h-4 text-orange-400" />
           </div>
-          {/* Fire beats Elec */}
+          {/* Fire beats Air */}
           <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
             <Flame className="w-4 h-4 text-orange-400" />
             <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Zap className="w-4 h-4 text-yellow-400" />
+            <Wind className="w-4 h-4 text-white" />
           </div>
-          {/* Elec beats Ice */}
+          {/* Air beats Water */}
           <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Zap className="w-4 h-4 text-yellow-400" />
+            <Wind className="w-4 h-4 text-white" />
             <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Snowflake className="w-4 h-4 text-sky-400" />
+            <Droplets className="w-4 h-4 text-sky-400" />
           </div>
-          {/* Ice beats Wind */}
+          {/* Water beats Earth */}
           <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Snowflake className="w-4 h-4 text-sky-400" />
+            <Droplets className="w-4 h-4 text-sky-400" />
             <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Wind className="w-4 h-4 text-emerald-400" />
+            <Mountain className="w-4 h-4 text-amber-600" />
           </div>
         </div>
       </div>

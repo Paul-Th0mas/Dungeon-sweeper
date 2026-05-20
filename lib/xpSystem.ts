@@ -67,13 +67,13 @@ const POOLS: Record<PlayerClass, LevelUpChoice[]> = {
   ],
   PALADIN: [
     { passive: 'DIVINE_SHIELD', name: 'Divine Shield',  description: 'Block the first 10 damage each combat.',  icon: '✨' },
-    { passive: 'HOLY_SMITE',   name: 'Holy Smite',      description: 'ICE Freeze effects last +1 extra turn.',  icon: '❄️' },
+    { passive: 'HOLY_SMITE',   name: 'Holy Smite',      description: 'WATER Freeze effects last +1 extra turn.',  icon: '❄️' },
     { passive: 'BLESSING',     name: 'Blessing',         description: 'Heal 10% max HP when entering a new floor.', icon: '💚' },
     { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                             icon: '🛡️' },
-    { passive: 'SACRED_GROUND', name: 'Sacred Ground',  description: 'Each ICE card played heals you for 3 HP.', icon: '🌊' },
+    { passive: 'SACRED_GROUND', name: 'Sacred Ground',  description: 'Each WATER card played heals you for 3 HP.', icon: '🌊' },
   ],
   WIZARD: [
-    { passive: 'ARCANE_MASTERY', name: 'Arcane Mastery', description: 'ELECTRICITY multipliers stack ×1.5.',    icon: '⚡' },
+    { passive: 'ARCANE_MASTERY', name: 'Arcane Mastery', description: 'AIR multipliers stack ×1.5.',    icon: '⚡' },
     { passive: 'OVERLOAD',     name: 'Overload',          description: '+1 hand attempt per combat.',             icon: '💥' },
     { passive: 'MANA_SURGE',   name: 'Mana Surge',        description: 'Every 3rd hand played deals double damage.', icon: '🌀' },
     { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                             icon: '🛡️' },
@@ -81,7 +81,7 @@ const POOLS: Record<PlayerClass, LevelUpChoice[]> = {
   ],
   OVERSEER: [
     { passive: 'SHADOW_STEP',     name: 'Shadow Step',      description: '20% chance to dodge enemy attack.',    icon: '👁️' },
-    { passive: 'EXPLOIT_WEAKNESS', name: 'Exploit Weakness', description: 'WIND draws also grant +5 gold.',       icon: '💨' },
+    { passive: 'EXPLOIT_WEAKNESS', name: 'Exploit Weakness', description: 'EARTH draws also grant +5 gold.',       icon: '💨' },
     { passive: 'TACTICAL_INSIGHT', name: 'Tactical Insight', description: '+1 discard per combat.',               icon: '🧠' },
     { passive: 'IRON_SKIN',       name: 'Iron Skin',         description: 'Max HP +20.',                          icon: '🛡️' },
     { passive: 'CALCULATED_RISK', name: 'Calculated Risk',   description: 'Win at <50% HP → earn double gold.',   icon: '🎲' },

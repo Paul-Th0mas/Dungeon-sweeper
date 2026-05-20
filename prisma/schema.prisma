@@ -7,6 +7,7 @@ datasource db {
 }
 
 enum GamePhase {
+  DASHBOARD
   EXPLORING
   COMBAT
   GAMEOVER
@@ -35,9 +36,9 @@ enum TileType {
 // Elemental cards replacing traditional suits
 enum CardElement {
   FIRE
-  ICE
-  ELECTRICITY
-  WIND
+  WATER
+  AIR
+  EARTH
 }
 
 enum PlayerClass {
@@ -84,6 +85,7 @@ model GameSession {
   deck  Card[]
 
   inventory             String[]   @default([])
+  shopRerolled          Boolean    @default(false)
 
   // Combat State (populated when phase == COMBAT)
   enemyName             String?
@@ -95,7 +97,7 @@ model GameSession {
   enemyQueue            String[]   @default([]) // Queue of enemy intents (Element strings)
   enemyQueueRevealed    Boolean    @default(true) // Hidden if PUSH status is active
   queueSlots            Int        @default(4)    // Slots available to player this turn
-  combatMultiplierBonus Float      @default(1.0)  // Stacks from ELECTRICITY chains
+  combatMultiplierBonus Float      @default(1.0)  // Stacks from AIR chains
   maxVigor              Int        @default(100)
   currentVigor          Int        @default(100)
 

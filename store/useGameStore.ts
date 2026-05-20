@@ -12,7 +12,14 @@ import {
   descendToNextFloor as serverDescend,
   stayOnFloor as serverStay,
   useItem as serverUseItem,
+  getRecentSessions as serverGetRecentSessions,
+  resumeSession as serverResumeSession,
 } from '../lib/actions';
+import {
+  purchaseShopCard as serverPurchaseShopCard,
+  sellDeckCard as serverSellDeckCard,
+  rerollShop as serverRerollShop,
+} from '../lib/shopActions';
 
 interface GameStore {
   sessionId: string | null;
@@ -35,8 +42,15 @@ interface GameStore {
   xpGained: number;
   goldGained: number;
 
+  // Shop State
+  shopCards: Card[];
+  shopRerolled: boolean;
+
   // Actions
+  setPhase: (phase: GamePhase) => void;
   initializeGame: (playerClass: PlayerClass) => Promise<void>;
+  resumeSession: (sessionId: string) => Promise<void>;
+  getRecentSessions: () => Promise<any[]>;
   movePlayer: (coord: AxialCoord) => Promise<void>;
   selectCard: (card: Card) => void;
   deselectCard: (card: Card) => void;
@@ -47,11 +61,16 @@ interface GameStore {
   descend: () => Promise<void>;
   stayOnFloor: () => Promise<void>;
   useItem: (itemName: string) => Promise<void>;
+
+  // Shop Actions
+  buyCard: (cardId: string) => Promise<void>;
+  sellCard: (cardId: string) => Promise<void>;
+  rerollShop: () => Promise<void>;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
   sessionId: null,
-  gamePhase: 'START_SCREEN',
+  gamePhase: 'DASHBOARD',
   player: null,
   grid: {},
   combatState: null,
@@ -61,9 +80,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   nextPhase: null,
   xpGained: 0,
   goldGained: 0,
+  shopCards: [],
+  shopRerolled: false,
+
+  setPhase: (phase: GamePhase) => set({ gamePhase: phase }),
 
   initializeGame: async (playerClass: PlayerClass) => {
     const data = await serverInitialize(playerClass);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dungeon_sweeper_session_id', data.id);
+    }
     set({
       sessionId: data.id,
       gamePhase: data.phase,
@@ -74,7 +100,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastClash: null,
       nextPhase: null,
       visitedCoords: new Set<string>(['0,0']), // start tile is always visited
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
+  },
+
+  resumeSession: async (sessionId: string) => {
+    const data = await serverResumeSession(sessionId);
+    if (!data) return;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dungeon_sweeper_session_id', data.id);
+    }
+
+    set({
+      sessionId: data.id,
+      gamePhase: data.phase,
+      player: data.player,
+      grid: data.grid,
+      combatState: data.combatState,
+      pendingLevelUpChoices: data.pendingLevelUpChoices ?? null,
+      lastClash: null,
+      nextPhase: null,
+      visitedCoords: new Set<string>(['0,0']), // approximate, or we could track this in DB
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
+    });
+  },
+
+  getRecentSessions: async () => {
+    return await serverGetRecentSessions();
   },
 
   movePlayer: async (coord: AxialCoord) => {
@@ -95,6 +150,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combatState: data.combatState,
       pendingLevelUpChoices: data.pendingLevelUpChoices ?? null,
       visitedCoords: visited,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
   },
 
@@ -148,6 +205,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingLevelUpChoices: result.pendingLevelUpChoices ?? null,
       xpGained: result.xpGained ?? 0,
       goldGained: result.goldGained ?? 0,
+      shopCards: result.shopCards ?? [],
+      shopRerolled: result.shopRerolled ?? false,
     });
   },
 
@@ -193,6 +252,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       player: data.player,
       grid: data.grid,
       pendingLevelUpChoices: null,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
   },
 
@@ -207,6 +268,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       grid: data.grid,
       combatState: null,
       visitedCoords: new Set<string>(['0,0']),
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
   },
 
@@ -219,6 +282,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gamePhase: data.phase,
       player: data.player,
       grid: data.grid,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
   },
 
@@ -230,6 +295,45 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       player: data.player,
       grid: data.grid,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
+    });
+  },
+
+  // Shop Actions
+  buyCard: async (cardId: string) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    const data = await serverPurchaseShopCard(sessionId, cardId);
+    if (!data) return;
+    set({
+      player: data.player,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
+    });
+  },
+
+  sellCard: async (cardId: string) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    const data = await serverSellDeckCard(sessionId, cardId);
+    if (!data) return;
+    set({
+      player: data.player,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
+    });
+  },
+
+  rerollShop: async () => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    const data = await serverRerollShop(sessionId);
+    if (!data) return;
+    set({
+      player: data.player,
+      shopCards: data.shopCards ?? [],
+      shopRerolled: data.shopRerolled ?? false,
     });
   },
 }));

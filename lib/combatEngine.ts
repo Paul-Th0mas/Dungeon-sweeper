@@ -2,11 +2,11 @@ import { Card, CardElement, PlayerClass, ClashResult, StatusEffect, FrameData } 
 
 // ── Elemental Wheel ────────────────────────────────────────────────────────
 // Key counters Value.
-const COUNTERS: Record<CardElement, CardElement> = {
-  WIND: 'FIRE',
-  FIRE: 'ELECTRICITY',
-  ELECTRICITY: 'ICE',
-  ICE: 'WIND',
+const COUNTERS: Record<Exclude<CardElement, 'VOID'>, CardElement> = {
+  EARTH: 'FIRE',
+  FIRE: 'AIR',
+  AIR: 'WATER',
+  WATER: 'EARTH',
 };
 
 // ── Status Effect Helpers ───────────────────────────────────────────────────
@@ -32,12 +32,12 @@ interface SpellRecipe {
 }
 
 const SPELL_DECK: SpellRecipe[] = [
-  { name: 'Inferno Blast', sequence: ['FIRE', 'FIRE', 'WIND'], effects: [burn(15, 3)], damage: 40 },
-  { name: 'Blizzard Shard', sequence: ['ICE', 'WIND'], effects: [freeze(2)], damage: 20 },
-  { name: 'Chain Lightning', sequence: ['ELECTRICITY', 'ELECTRICITY'], effects: [chain(2.0)], damage: 30 },
-  { name: 'Hurricane', sequence: ['WIND', 'WIND', 'WIND'], effects: [push(2)], damage: 25 },
-  { name: 'Frostburn', sequence: ['FIRE', 'ICE'], effects: [burn(10, 2), freeze(1)], damage: 25 },
-  { name: 'Plasma Storm', sequence: ['ELECTRICITY', 'FIRE', 'WIND'], effects: [chain(3.0), burn(20, 2)], damage: 60 }
+  { name: 'Inferno Blast', sequence: ['FIRE', 'FIRE', 'EARTH'], effects: [burn(15, 3)], damage: 40 },
+  { name: 'Blizzard Shard', sequence: ['WATER', 'EARTH'], effects: [freeze(2)], damage: 20 },
+  { name: 'Chain Lightning', sequence: ['AIR', 'AIR'], effects: [chain(2.0)], damage: 30 },
+  { name: 'Hurricane', sequence: ['EARTH', 'EARTH', 'EARTH'], effects: [push(2)], damage: 25 },
+  { name: 'Frostburn', sequence: ['FIRE', 'WATER'], effects: [burn(10, 2), freeze(1)], damage: 25 },
+  { name: 'Plasma Storm', sequence: ['AIR', 'FIRE', 'EARTH'], effects: [chain(3.0), burn(20, 2)], damage: 60 }
 ];
 
 // ── Clashing Logic ──────────────────────────────────────────────────────────
@@ -69,12 +69,22 @@ export function resolveQueueClash(
     const basePlayerDamage = pCard ? (pCard.rank * 2) : 0; // rough base dmg based on rank
     const baseEnemyDamage = eEl ? 10 : 0; // static enemy damage for un-countered blocks
 
-    if (pEl && eEl) {
-      if (COUNTERS[pEl] === eEl) {
+    if (pEl === 'VOID' && eEl === 'VOID') {
+      result = 'TIE';
+      eDmg = 20;
+      pDmg = 20;
+    } else if (pEl === 'VOID') {
+      result = 'WIN';
+      eDmg = 20;
+    } else if (eEl === 'VOID') {
+      result = 'LOSE';
+      pDmg = 20;
+    } else if (pEl && eEl) {
+      if (COUNTERS[pEl as keyof typeof COUNTERS] === eEl) {
         // Player Hard Counters
         result = 'WIN';
         eDmg = basePlayerDamage;
-      } else if (COUNTERS[eEl] === pEl) {
+      } else if (COUNTERS[eEl as keyof typeof COUNTERS] === pEl) {
         // Enemy Hard Counters
         result = 'LOSE';
         pDmg = baseEnemyDamage;

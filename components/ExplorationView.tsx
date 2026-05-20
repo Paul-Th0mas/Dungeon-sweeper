@@ -125,7 +125,7 @@ export default function ExplorationView() {
                         {item === 'HEALTH_POTION' && <FlaskConical className="w-3.5 h-3.5 text-yellow-500" />}
                       </div>
                       <span className="text-[10px] font-bold text-zinc-300">
-                        {item === 'HEALTH_POTION' ? 'Health Potion' : item}
+                        {item === 'HEALTH_POTION' ? 'Health Potion' : String(item)}
                       </span>
                     </div>
                     <button 

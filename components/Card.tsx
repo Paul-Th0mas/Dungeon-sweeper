@@ -2,7 +2,7 @@
 
 import { Card, CardElement } from '@/lib/types';
 import { clsx } from 'clsx';
-import { Flame, Snowflake, Zap, Wind, X } from 'lucide-react';
+import { Flame, Droplets, Wind, Mountain, X, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Props {
@@ -11,14 +11,76 @@ interface Props {
   onClick: () => void;
 }
 
-const ELEMENT_CONFIG: Record<CardElement, { color: string; selectedColor: string; icon: any; glow: string; border: string; label: string }> = {
+const ELEMENT_CONFIG: Record<string, { color: string; selectedColor: string; icon: any; glow: string; border: string; label: string }> = {
   FIRE:        { color: 'text-orange-400', selectedColor: 'text-orange-600', icon: Flame,     glow: 'bg-orange-500/15', border: 'border-orange-500/40', label: 'Fire'  },
-  ICE:         { color: 'text-sky-400',    selectedColor: 'text-sky-600',    icon: Snowflake, glow: 'bg-sky-400/15',    border: 'border-sky-400/40',    label: 'Ice'   },
-  ELECTRICITY: { color: 'text-yellow-400', selectedColor: 'text-yellow-600', icon: Zap,       glow: 'bg-yellow-400/15', border: 'border-yellow-400/40', label: 'Elec'  },
-  WIND:        { color: 'text-emerald-400', selectedColor: 'text-emerald-600', icon: Wind,    glow: 'bg-emerald-400/15', border: 'border-emerald-500/40', label: 'Wind' },
+  WATER:         { color: 'text-sky-400',    selectedColor: 'text-sky-600',    icon: Droplets, glow: 'bg-sky-400/15',    border: 'border-sky-400/40',    label: 'Water'   },
+  AIR: { color: 'text-yellow-400', selectedColor: 'text-yellow-600', icon: Wind,       glow: 'bg-yellow-400/15', border: 'border-yellow-400/40', label: 'Air'  },
+  EARTH:        { color: 'text-emerald-400', selectedColor: 'text-emerald-600', icon: Mountain,    glow: 'bg-emerald-400/15', border: 'border-emerald-500/40', label: 'Earth' },
+  VOID:        { color: 'text-zinc-400',    selectedColor: 'text-zinc-600',    icon: Sparkles, glow: 'bg-zinc-500/15', border: 'border-zinc-500/40', label: 'Void' },
 };
 
+const WILDCARD_COLORS: Record<string, { bg: string; border: string; glow: string; text: string; label: string }> = {
+  wildcard_prism_shard: {
+    bg: 'bg-gradient-to-br from-indigo-950 via-purple-900/80 to-pink-950',
+    border: 'border-pink-500/40 hover:border-pink-400',
+    glow: 'bg-pink-500/20',
+    text: 'text-pink-400',
+    label: 'Prism Shard'
+  },
+  wildcard_void_shard: {
+    bg: 'bg-gradient-to-br from-zinc-950 via-purple-950/80 to-zinc-900',
+    border: 'border-purple-600/40 hover:border-purple-500',
+    glow: 'bg-purple-600/20',
+    text: 'text-purple-400',
+    label: 'Void Shard'
+  },
+  wildcard_catalyst: {
+    bg: 'bg-gradient-to-br from-emerald-950 via-teal-950/80 to-slate-900',
+    border: 'border-emerald-500/40 hover:border-emerald-400',
+    glow: 'bg-emerald-500/20',
+    text: 'text-emerald-400',
+    label: 'Catalyst'
+  },
+  wildcard_aegis_shard: {
+    bg: 'bg-gradient-to-br from-blue-950 via-sky-950/80 to-slate-900',
+    border: 'border-sky-500/40 hover:border-sky-400',
+    glow: 'bg-sky-500/20',
+    text: 'text-sky-400',
+    label: 'Aegis Shard'
+  },
+  wildcard_terra_stone: {
+    bg: 'bg-gradient-to-br from-amber-950 via-yellow-950/80 to-orange-900',
+    border: 'border-amber-500/40 hover:border-amber-400',
+    glow: 'bg-amber-500/20',
+    text: 'text-amber-400',
+    label: 'Terra Stone'
+  },
+  wildcard_chaos_shard: {
+    bg: 'bg-gradient-to-br from-red-950 via-rose-950/80 to-slate-900',
+    border: 'border-rose-500/40 hover:border-rose-400',
+    glow: 'bg-rose-500/20',
+    text: 'text-rose-400',
+    label: 'Chaos Shard'
+  },
+};
 
+const DEFAULT_WILDCARD = {
+  bg: 'bg-gradient-to-br from-violet-950 via-fuchsia-950/80 to-slate-900',
+  border: 'border-violet-500/40 hover:border-violet-400',
+  glow: 'bg-violet-500/20',
+  text: 'text-violet-400',
+  label: 'Wildcard'
+};
+
+function getRankLabel(rank: number, isWildcard: boolean): string {
+  if (isWildcard) return '★';
+  if (rank <= 10) return String(rank);
+  if (rank === 11) return 'J';
+  if (rank === 12) return 'Q';
+  if (rank === 13) return 'K';
+  if (rank === 14) return 'A';
+  return String(rank);
+}
 
 /** Renders 1–5 small dots showing remaining uses. 999 = ∞ */
 function DurabilityPips({ current, max }: { current: number; max: number }) {
@@ -43,8 +105,13 @@ function DurabilityPips({ current, max }: { current: number; max: number }) {
 
 export default function CardComponent({ card, selected, onClick }: Props) {
   const isAsh = card.isAsh ?? false;
+  const isWildcard = !!(card.specialModifier && (card.specialModifier as any).isWildcard);
+  const wildcardType = isWildcard ? ((card.specialModifier as any).wildcardType || "") : "";
+  const wildcardConf = isWildcard ? (WILDCARD_COLORS[wildcardType] || DEFAULT_WILDCARD) : DEFAULT_WILDCARD;
+  const wildcardDesc = isWildcard ? ((card.specialModifier as any).description || "") : "";
+
   const config = isAsh ? null : ELEMENT_CONFIG[card.element];
-  const Icon = config ? config.icon : X;
+  const Icon = isAsh ? X : isWildcard ? Sparkles : (config ? config.icon : X);
 
   return (
     <motion.div
@@ -57,8 +124,8 @@ export default function CardComponent({ card, selected, onClick }: Props) {
         isAsh
           ? 'bg-zinc-900/50 border-zinc-700/40 opacity-60 cursor-not-allowed'
           : selected
-            ? `bg-zinc-100 ${config!.border} -translate-y-8 shadow-[0_20px_50px_rgba(255,255,255,0.15)] z-30`
-            : `bg-zinc-900/80 border-white/5 hover:${config!.border} shadow-2xl`
+            ? `bg-zinc-100 ${isWildcard ? wildcardConf.border : config!.border} -translate-y-8 shadow-[0_20px_50px_rgba(255,255,255,0.15)] z-30`
+            : `${isWildcard ? wildcardConf.bg : 'bg-zinc-900/80'} ${isWildcard ? wildcardConf.border : 'border-white/5'} hover:${isWildcard ? wildcardConf.border : config!.border} shadow-2xl`
       )}
     >
       {/* Ash overlay */}
@@ -82,28 +149,47 @@ export default function CardComponent({ card, selected, onClick }: Props) {
       )}
 
       {/* Selection glow */}
-      {selected && !isAsh && config && (
+      {selected && !isAsh && (isWildcard ? wildcardConf : config) && (
         <motion.div
-          className={clsx('absolute inset-0 rounded-2xl blur-xl -z-10 opacity-30', config.glow)}
+          className={clsx('absolute inset-0 rounded-2xl blur-xl -z-10 opacity-30', isWildcard ? wildcardConf.glow : config!.glow)}
         />
       )}
 
       {/* Top Row */}
-      <div className="w-full flex justify-start items-start">
-        <Icon className={clsx('w-5 h-5', isAsh ? 'text-zinc-600' : selected ? 'text-zinc-700' : `${config!.color} opacity-60`)} />
+      <div className="w-full flex justify-between items-start">
+        <Icon className={clsx('w-5 h-5', isAsh ? 'text-zinc-600' : selected ? 'text-zinc-700' : isWildcard ? wildcardConf.text : `${config!.color} opacity-60`)} />
+        {!isAsh && (
+          <span className={clsx('text-[11px] font-black tracking-tight', isWildcard ? wildcardConf.text : selected ? 'text-zinc-800' : 'text-zinc-400')}>
+            {getRankLabel(card.rank, isWildcard)}
+          </span>
+        )}
       </div>
 
       {/* Center */}
-      {!isAsh && config && (
-        <div className="relative flex flex-col items-center gap-1">
-          <Icon className={clsx('w-10 h-10 transition-transform duration-300', selected ? 'text-zinc-900' : config.color)} />
-          <span className={clsx('text-[9px] font-black uppercase tracking-widest', selected ? 'text-zinc-600' : 'text-zinc-600')}>
-            {config.label}
-          </span>
-          {!selected && (
-            <div className={clsx('absolute inset-0 blur-2xl -z-10 opacity-60', config.glow)} />
-          )}
-        </div>
+      {!isAsh && (
+        isWildcard ? (
+          <div className="relative flex flex-col items-center gap-0.5 px-0.5 text-center">
+            <Icon className={clsx('w-8 h-8 transition-transform duration-300', selected ? 'text-zinc-900' : wildcardConf.text)} />
+            <span className={clsx('text-[8px] font-black uppercase tracking-wider', selected ? 'text-zinc-800' : 'text-zinc-100')}>
+              {wildcardConf.label}
+            </span>
+            <span className={clsx('text-[6px] leading-tight font-medium opacity-80 px-0.5', selected ? 'text-zinc-600' : 'text-zinc-400')}>
+              {wildcardDesc}
+            </span>
+          </div>
+        ) : (
+          config && (
+            <div className="relative flex flex-col items-center gap-1">
+              <Icon className={clsx('w-10 h-10 transition-transform duration-300', selected ? 'text-zinc-900' : config.color)} />
+              <span className={clsx('text-[9px] font-black uppercase tracking-widest', selected ? 'text-zinc-600' : 'text-zinc-600')}>
+                {config.label}
+              </span>
+              {!selected && (
+                <div className={clsx('absolute inset-0 blur-2xl -z-10 opacity-60', config.glow)} />
+              )}
+            </div>
+          )
+        )
       )}
 
       {/* Durability Pips (bottom) */}
@@ -111,8 +197,11 @@ export default function CardComponent({ card, selected, onClick }: Props) {
         <div className="w-full flex flex-col items-center gap-1">
           <DurabilityPips current={card.currentUses ?? 3} max={card.maxUses ?? 3} />
           {/* Bottom row rank (rotated) */}
-          <div className="w-full flex justify-start items-end rotate-180">
-            <Icon className={clsx('w-5 h-5', selected ? 'text-zinc-700' : `${config!.color} opacity-60`)} />
+          <div className="w-full flex justify-between items-end rotate-180">
+            <Icon className={clsx('w-5 h-5', selected ? 'text-zinc-700' : isWildcard ? wildcardConf.text : `${config!.color} opacity-60`)} />
+            <span className={clsx('text-[11px] font-black tracking-tight', isWildcard ? wildcardConf.text : selected ? 'text-zinc-800' : 'text-zinc-400')}>
+              {getRankLabel(card.rank, isWildcard)}
+            </span>
           </div>
         </div>
       )}

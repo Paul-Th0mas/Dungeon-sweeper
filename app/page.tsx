@@ -13,13 +13,15 @@ import LevelUpModal from '@/components/LevelUpModal';
 import StartScreenView from '@/components/StartScreenView';
 import FloorEndModal from '@/components/FloorEndModal';
 import TreasureRoomView from '@/components/TreasureRoomView';
+import DashboardView from '@/components/DashboardView';
 
 export default function Home() {
   const { gamePhase } = useGameStore();
 
 
   return (
-    <main className="w-full h-screen bg-zinc-950 text-zinc-100 select-none overflow-hidden">
+    <main className="w-full h-screen bg-zinc-950 text-zinc-100 select-none overflow-hidden font-sans">
+      {gamePhase === 'DASHBOARD'    && <DashboardView />}
       {gamePhase === 'START_SCREEN' && <StartScreenView />}
       {gamePhase === 'EXPLORING' && <ExplorationView />}
       {gamePhase === 'COMBAT'    && <CombatView />}

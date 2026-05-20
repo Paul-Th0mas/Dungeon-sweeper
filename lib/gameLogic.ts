@@ -39,71 +39,71 @@ const CLASS_KITS: Record<PlayerClass, DeckEntry[]> = {
     { element: 'FIRE', rank: 11 }, { element: 'FIRE', rank: 12 },
     // Legendary Fire (Exhaust)
     { element: 'FIRE', rank: 14 },
-    // Support Electricity
-    { element: 'ELECTRICITY', rank: 3 }, { element: 'ELECTRICITY', rank: 7 },
-    { element: 'ELECTRICITY', rank: 10 },
-    // Utility Ice & Wind
-    { element: 'ICE',  rank: 4 }, { element: 'WIND', rank: 3 },
+    // Support Air
+    { element: 'AIR', rank: 3 }, { element: 'AIR', rank: 7 },
+    { element: 'AIR', rank: 10 },
+    // Utility Water & Earth
+    { element: 'WATER',  rank: 4 }, { element: 'EARTH', rank: 3 },
   ],
   PALADIN: [
-    // Core: 8 Basic Ice attacks (infinite)
-    { element: 'ICE', rank: 2 }, { element: 'ICE', rank: 3 },
-    { element: 'ICE', rank: 4 }, { element: 'ICE', rank: 5 },
-    { element: 'ICE', rank: 2 }, { element: 'ICE', rank: 3 },
-    { element: 'ICE', rank: 4 }, { element: 'ICE', rank: 5 },
-    // Standard Ice spells
-    { element: 'ICE', rank: 7 }, { element: 'ICE', rank: 8 },
-    { element: 'ICE', rank: 9 }, { element: 'ICE', rank: 9 },
-    // Limited Ice power
-    { element: 'ICE', rank: 11 }, { element: 'ICE', rank: 12 },
-    // Legendary Ice (Exhaust)
-    { element: 'ICE', rank: 14 },
+    // Core: 8 Basic Water attacks (infinite)
+    { element: 'WATER', rank: 2 }, { element: 'WATER', rank: 3 },
+    { element: 'WATER', rank: 4 }, { element: 'WATER', rank: 5 },
+    { element: 'WATER', rank: 2 }, { element: 'WATER', rank: 3 },
+    { element: 'WATER', rank: 4 }, { element: 'WATER', rank: 5 },
+    // Standard Water spells
+    { element: 'WATER', rank: 7 }, { element: 'WATER', rank: 8 },
+    { element: 'WATER', rank: 9 }, { element: 'WATER', rank: 9 },
+    // Limited Water power
+    { element: 'WATER', rank: 11 }, { element: 'WATER', rank: 12 },
+    // Legendary Water (Exhaust)
+    { element: 'WATER', rank: 14 },
     // Support Fire
     { element: 'FIRE', rank: 3 }, { element: 'FIRE', rank: 8 },
-    // Utility Wind
-    { element: 'WIND', rank: 3 }, { element: 'WIND', rank: 7 },
-    // One Electricity
-    { element: 'ELECTRICITY', rank: 4 },
+    // Utility Earth
+    { element: 'EARTH', rank: 3 }, { element: 'EARTH', rank: 7 },
+    // One Air
+    { element: 'AIR', rank: 4 },
   ],
   WIZARD: [
-    // Core: 8 Basic Electricity attacks (infinite)
-    { element: 'ELECTRICITY', rank: 2 }, { element: 'ELECTRICITY', rank: 3 },
-    { element: 'ELECTRICITY', rank: 4 }, { element: 'ELECTRICITY', rank: 5 },
-    { element: 'ELECTRICITY', rank: 2 }, { element: 'ELECTRICITY', rank: 3 },
-    { element: 'ELECTRICITY', rank: 4 }, { element: 'ELECTRICITY', rank: 5 },
-    // Standard Electricity spells
-    { element: 'ELECTRICITY', rank: 7 }, { element: 'ELECTRICITY', rank: 8 },
-    { element: 'ELECTRICITY', rank: 9 },
-    // Limited Electricity power
-    { element: 'ELECTRICITY', rank: 11 }, { element: 'ELECTRICITY', rank: 13 },
-    // Legendary Electricity (Exhaust)
-    { element: 'ELECTRICITY', rank: 14 },
+    // Core: 8 Basic Air attacks (infinite)
+    { element: 'AIR', rank: 2 }, { element: 'AIR', rank: 3 },
+    { element: 'AIR', rank: 4 }, { element: 'AIR', rank: 5 },
+    { element: 'AIR', rank: 2 }, { element: 'AIR', rank: 3 },
+    { element: 'AIR', rank: 4 }, { element: 'AIR', rank: 5 },
+    // Standard Air spells
+    { element: 'AIR', rank: 7 }, { element: 'AIR', rank: 8 },
+    { element: 'AIR', rank: 9 },
+    // Limited Air power
+    { element: 'AIR', rank: 11 }, { element: 'AIR', rank: 13 },
+    // Legendary Air (Exhaust)
+    { element: 'AIR', rank: 14 },
     // Support Fire
     { element: 'FIRE', rank: 3 }, { element: 'FIRE', rank: 8 },
     { element: 'FIRE', rank: 10 },
-    // Utility Ice & Wind
-    { element: 'ICE',  rank: 3 }, { element: 'WIND', rank: 3 },
-    { element: 'WIND', rank: 7 },
+    // Utility Water & Earth
+    { element: 'WATER',  rank: 3 }, { element: 'EARTH', rank: 3 },
+    { element: 'EARTH', rank: 7 },
   ],
   OVERSEER: [
-    // Core: 8 Basic Wind attacks (infinite)
-    { element: 'WIND', rank: 2 }, { element: 'WIND', rank: 3 },
-    { element: 'WIND', rank: 4 }, { element: 'WIND', rank: 5 },
-    { element: 'WIND', rank: 2 }, { element: 'WIND', rank: 3 },
-    { element: 'WIND', rank: 4 }, { element: 'WIND', rank: 5 },
-    // Standard Wind spells
-    { element: 'WIND', rank: 7 }, { element: 'WIND', rank: 8 },
-    { element: 'WIND', rank: 9 }, { element: 'WIND', rank: 9 },
-    // Limited Wind power
-    { element: 'WIND', rank: 11 }, { element: 'WIND', rank: 12 },
-    // Legendary Wind (Exhaust)
-    { element: 'WIND', rank: 14 },
-    // Support Ice
-    { element: 'ICE',  rank: 3 }, { element: 'ICE',  rank: 8 },
-    { element: 'ICE',  rank: 10 },
-    // Utility Fire & Electricity
-    { element: 'FIRE', rank: 3 }, { element: 'ELECTRICITY', rank: 4 },
-    { element: 'ELECTRICITY', rank: 7 },
+    // Core: 8 Basic Earth attacks (infinite)
+    { element: 'EARTH', rank: 2 }, { element: 'EARTH', rank: 3 },
+    { element: 'EARTH', rank: 4 }, { element: 'EARTH', rank: 5 },
+    { element: 'EARTH', rank: 2 }, { element: 'EARTH', rank: 3 },
+    { element: 'EARTH', rank: 4 }, { element: 'EARTH', rank: 5 },
+    // Standard Earth spells
+    { element: 'EARTH', rank: 7 }, { element: 'EARTH', rank: 8 },
+    { element: 'EARTH', rank: 9 }, { element: 'EARTH', rank: 9 },
+    // Limited Earth power
+    { element: 'EARTH', rank: 11 }, { element: 'EARTH', rank: 12 },
+    // Legendary Earth (Exhaust)
+    { element: 'EARTH', rank: 14 },
+    // Support Water
+    { element: 'WATER',  rank: 3 }, { element: 'WATER',  rank: 8 },
+    { element: 'WATER',  rank: 10 },
+    // Utility Fire & Air
+    { element: 'FIRE', rank: 3 }, { element: 'AIR', rank: 4 },
+    { element: 'AIR', rank: 7 },
   ],
 };
 
