@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from './prisma';
-import { generateGrid, generateDeck, getRandomEnemy, generateTreasureGrid } from './gameLogic';
+import { generateGrid, generateDeck, getRandomEnemy, generateTreasureGrid, generateEnemyQueue, getEnemyBiasByName } from './gameLogic';
 import { resolveQueueClash, tickStatusEffects, mergeStatusEffects, isFrozen, isPushed, getChainBonus } from './combatEngine';
 import { calculateLevelUp, getEnemyRewards, getXPToNextLevel, pickLevelUpChoices, applyPassiveStat } from './xpSystem';
 import { AxialCoord, Tile as ClientTile, Card as ClientCard, GamePhase, PlayerClass, TileType, StatusEffect, PassiveAbility } from './types';
@@ -75,6 +75,7 @@ function formatSession(session: any, forceCombat: boolean = false) {
       attackDamage: session.enemyAttackDamage ?? 10,
       rewardRarity: 'COMMON' as 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY',
       statusEffects,
+      elementBias: getEnemyBiasByName(session.enemyName || ""),
     },
     hand: playerHand,
     playerQueue: (session.playerQueue || []).map((id: string) => allCards.find((c: any) => c.id === id)).filter(Boolean),
@@ -322,8 +323,7 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
     const extraHands = (session.passives.includes('BATTLE_FURY') || session.passives.includes('OVERLOAD')) ? 1 : 0;
     const extraDiscards = session.passives.includes('TACTICAL_INSIGHT') ? 1 : 0;
 
-    const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
-    const enemyQueue = Array.from({ length: 4 }).map(() => elements[Math.floor(Math.random() * elements.length)]);
+    const enemyQueue = generateEnemyQueue(enemy.name, 4);
 
     const updated = await prisma.gameSession.update({
       where: { id: sessionId },
@@ -576,8 +576,7 @@ export async function submitQueue(sessionId: string, cardIds: string[]) {
   }
 
   // 9. Next turn Enemy Intent
-  const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
-  const newEnemyQueue = Array.from({ length: session.queueSlots }).map(() => elements[Math.floor(Math.random() * elements.length)]);
+  const newEnemyQueue = generateEnemyQueue(session.enemyName || '', session.queueSlots);
 
   // 10. Update session
   const updated = await prisma.gameSession.update({
@@ -609,8 +608,7 @@ export async function discardCards(sessionId: string, cardIds: string[]) {
   await drawCards(sessionId, cardIds.length);
 
   // Refresh enemy intent queue
-  const elements: ('FIRE'|'WATER'|'EARTH'|'AIR')[] = ['FIRE', 'WATER', 'EARTH', 'AIR'];
-  const newEnemyQueue = Array.from({ length: session.queueSlots || 4 }).map(() => elements[Math.floor(Math.random() * elements.length)]);
+  const newEnemyQueue = generateEnemyQueue(session.enemyName || '', session.queueSlots || 4);
 
   const updated = await prisma.gameSession.update({
     where: { id: sessionId },

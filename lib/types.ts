@@ -59,9 +59,15 @@ export interface FrameData {
   enemyHpAfter: number;
 }
 
+export interface TriggeredSpell {
+  name: string;
+  damage: number;
+  enemyHpAfter: number;
+}
+
 export interface ClashResult {
   frames: FrameData[];
-  spellsTriggered: string[];
+  spellsTriggered: TriggeredSpell[];
   totalEnemyDamage: number;
   totalPlayerDamage: number;
   newStatusEffects: StatusEffect[];
@@ -78,6 +84,7 @@ export interface Enemy {
   attackDamage: number;
   rewardRarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
   statusEffects: StatusEffect[];
+  elementBias?: Partial<Record<CardElement, number>>;
 }
 
 // ── Player & Classes ─────────────────────────────────────────────────────────

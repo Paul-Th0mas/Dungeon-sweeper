@@ -1,4 +1,4 @@
-import { Card, CardElement, PlayerClass, ClashResult, StatusEffect, FrameData } from './types';
+import { Card, CardElement, PlayerClass, ClashResult, StatusEffect, FrameData, TriggeredSpell } from './types';
 
 // ── Elemental Wheel ────────────────────────────────────────────────────────
 // Key counters Value.
@@ -135,8 +135,9 @@ export function resolveQueueClash(
   totalEnemyDamage = Math.floor(totalEnemyDamage * currentChainBonus);
 
   // Check for Spells triggered by Player Queue
-  const triggeredSpells: string[] = [];
+  const triggeredSpells: TriggeredSpell[] = [];
   const pSeq = playerQueue.map(c => c.element);
+  let tempEnemyHp = currentEnemyHp;
 
   for (const spell of SPELL_DECK) {
     // Check if the spell sequence exists exactly inside pSeq
@@ -149,8 +150,14 @@ export function resolveQueueClash(
         }
       }
       if (match) {
-        triggeredSpells.push(spell.name);
-        totalEnemyDamage += Math.floor(spell.damage * currentChainBonus);
+        const spellDmg = Math.floor(spell.damage * currentChainBonus);
+        totalEnemyDamage += spellDmg;
+        tempEnemyHp = Math.max(0, tempEnemyHp - spellDmg);
+        triggeredSpells.push({
+          name: spell.name,
+          damage: spellDmg,
+          enemyHpAfter: tempEnemyHp,
+        });
         newStatusEffects.push(...spell.effects);
         // We only trigger a specific spell once per queue to prevent abuse, 
         // though they could weave it twice if long enough. Break inner loop.
@@ -165,7 +172,7 @@ export function resolveQueueClash(
     totalEnemyDamage,
     totalPlayerDamage,
     newStatusEffects,
-    description: triggeredSpells.length > 0 ? `Triggered: ${triggeredSpells.join(', ')}` : 'Clash resolved.',
+    description: triggeredSpells.length > 0 ? `Triggered: ${triggeredSpells.map(s => s.name).join(', ')}` : 'Clash resolved.',
     enemyHpAtStart
   };
 }

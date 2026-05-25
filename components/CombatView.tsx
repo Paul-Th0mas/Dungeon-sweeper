@@ -88,6 +88,16 @@ export default function CombatView() {
     }
   }, [animationPhase, lastClash]);
 
+  // Update displayed HP during Spell animations
+  useEffect(() => {
+    if (animationPhase === 'SPELLS' && lastClash) {
+      const currentSpell = lastClash.spellsTriggered[animatingSpellIndex];
+      if (currentSpell) {
+        setDisplayedEnemyHp(currentSpell.enemyHpAfter);
+      }
+    }
+  }, [animationPhase, animatingSpellIndex, lastClash]);
+
   if (!combatState || !combatState.enemy || !player) {
     return <div className="flex items-center justify-center h-screen bg-zinc-950 text-white">Loading Combat State...</div>;
   }
@@ -96,7 +106,7 @@ export default function CombatView() {
   const statusEffects: StatusEffect[] = enemy.statusEffects ?? [];
 
   return (
-    <div className="relative flex flex-col items-center justify-between w-full h-screen overflow-hidden py-6 px-4 bg-zinc-950">
+    <div className="relative flex flex-col items-center justify-between w-full h-screen overflow-hidden py-3 sm:py-6 px-2 sm:px-4 bg-zinc-950">
       
       {/* ── Elemental Counters Panel ── */}
       <div className="absolute top-6 left-6 flex flex-col gap-2 p-4 bg-zinc-900/40 border border-white/5 rounded-2xl backdrop-blur-md z-10 pointer-events-none hidden sm:flex">
@@ -130,25 +140,45 @@ export default function CombatView() {
       </div>
 
       {/* ── Enemy Section ── */}
-      <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col items-center gap-3 w-full max-w-2xl z-10">
-        <div className="flex items-center gap-4">
+      <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col items-center gap-1.5 sm:gap-3 w-full max-w-2xl z-10">
+        <div className="flex items-center gap-2 sm:gap-4">
           <motion.div
             animate={{ y: [0, -5, 0] }}
             transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
-            className="p-4 bg-zinc-900/50 border border-red-900/30 rounded-full backdrop-blur-md"
+            className="p-2 sm:p-4 bg-zinc-900/50 border border-red-900/30 rounded-full backdrop-blur-md"
           >
-            <Skull className="w-10 h-10 text-red-500" />
+            <Skull className="w-6 h-6 sm:w-10 sm:h-10 text-red-500" />
           </motion.div>
-          <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-black uppercase tracking-widest text-zinc-100 italic">{enemy.name}</h2>
+          <div className="flex flex-col gap-0.5 sm:gap-1">
+            <h2 className="text-lg sm:text-xl font-black uppercase tracking-widest text-zinc-100 italic">{enemy.name}</h2>
             {/* Enemy HP as Vigor for now */}
-            <div className="w-48 h-3 bg-zinc-900 rounded-full border border-white/5 p-[2px] overflow-hidden">
+            <div className="w-36 h-2 sm:w-48 sm:h-3 bg-zinc-900 rounded-full border border-white/5 p-[1px] sm:p-[2px] overflow-hidden">
               <motion.div
                 animate={{ width: `${(displayedEnemyHp / enemy.maxHp) * 100}%` }}
                 className="h-full bg-gradient-to-r from-red-800 to-red-500 rounded-full"
               />
             </div>
-            <div className="text-[10px] text-zinc-400 font-mono text-right">{displayedEnemyHp} / {enemy.maxHp} HP</div>
+            <div className="flex justify-between items-center mt-0.5 min-w-[144px] sm:min-w-[192px]">
+              {enemy.elementBias && (
+                <div className="flex items-center gap-1 sm:gap-1.5 bg-zinc-900/60 px-1 sm:px-1.5 py-0.5 rounded-lg border border-white/5">
+                  {Object.entries(enemy.elementBias)
+                    .filter(([, weight]) => (weight || 0) > 0)
+                    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                    .map(([element, weight]) => {
+                      const el = element as CardElement;
+                      const style = ELEMENT_STYLES[el];
+                      const Icon = style?.icon || Flame;
+                      return (
+                        <span key={element} className={clsx("flex items-center gap-0.5 text-[8px] sm:text-[9px] font-mono font-bold", style?.color)}>
+                          <Icon className="w-2 sm:w-2.5 h-2 sm:h-2.5" />
+                          {Math.round((weight || 0) * 100)}%
+                        </span>
+                      );
+                    })}
+                </div>
+              )}
+              <div className="text-[9px] sm:text-[10px] text-zinc-400 font-mono text-right flex-1">{displayedEnemyHp} / {enemy.maxHp} HP</div>
+            </div>
           </div>
         </div>
 
@@ -168,16 +198,16 @@ export default function CombatView() {
         )}
 
         {/* Enemy Intent Queue */}
-        <div className="mt-2 flex flex-col items-center">
-          <span className="text-[10px] text-red-400/70 font-black uppercase tracking-widest mb-1">Enemy Intent</span>
-          <div className="flex gap-2">
+        <div className="mt-1 sm:mt-2 flex flex-col items-center">
+          <span className="text-[9px] sm:text-[10px] text-red-400/70 font-black uppercase tracking-widest mb-0.5 sm:mb-1">Enemy Intent</span>
+          <div className="flex gap-1.5 sm:gap-2">
             {enemyQueue.map((el, i) => {
               const isRevealed = enemyQueueRevealed;
               const style = isRevealed ? ELEMENT_STYLES[el] : null;
               const Icon = style?.icon;
               return (
-                <div key={i} className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center shadow-lg ${isRevealed ? style!.bg : 'bg-zinc-800 border-zinc-700'}`}>
-                  {isRevealed && Icon ? <Icon className={`w-6 h-6 ${style.color}`} /> : <span className="text-zinc-600 font-bold">?</span>}
+                <div key={i} className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg border-2 flex items-center justify-center shadow-lg ${isRevealed ? style!.bg : 'bg-zinc-800 border-zinc-700'}`}>
+                  {isRevealed && Icon ? <Icon className={`w-4 h-4 sm:w-6 sm:h-6 ${style.color}`} /> : <span className="text-zinc-600 font-bold text-xs sm:text-base">?</span>}
                 </div>
               );
             })}
@@ -188,7 +218,7 @@ export default function CombatView() {
       {/* ── Clash Animation Area ── */}
       <div className="flex-1 w-full flex flex-col items-center justify-center relative">
         {animationPhase !== 'NONE' && lastClash ? (
-          <div className="flex flex-col items-center gap-4 p-6 glass rounded-2xl border border-white/10 w-full max-w-2xl relative overflow-hidden">
+          <div className="flex flex-col items-center gap-2 sm:gap-4 p-3 sm:p-6 glass rounded-xl sm:rounded-2xl border border-white/10 w-full max-w-2xl relative overflow-hidden">
             
             {/* Dynamic Background during Spells */}
             <AnimatePresence>
@@ -202,11 +232,11 @@ export default function CombatView() {
               )}
             </AnimatePresence>
 
-            <h3 className="text-xl font-black uppercase text-zinc-300 italic tracking-widest mb-4 z-10">
+            <h3 className="text-lg sm:text-xl font-black uppercase text-zinc-300 italic tracking-widest mb-2 sm:mb-4 z-10">
               {animationPhase === 'CLASHING' ? 'Clashing...' : animationPhase === 'SPELLS' ? 'Spell Triggered!' : displayedEnemyHp <= 0 ? 'Enemy Defeated!' : 'Clash Complete'}
             </h3>
             
-            <div className="z-10 w-full flex justify-center min-h-[120px] items-center">
+            <div className="z-10 w-full flex justify-center min-h-[90px] sm:min-h-[120px] items-center">
               {animationPhase === 'CLASHING' && animatingFrame < lastClash.frames.length ? (
                 // Show current frame clashing
                 <AnimatePresence mode="wait">
@@ -215,41 +245,41 @@ export default function CombatView() {
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 1.2, opacity: 0 }}
-                    className="flex items-center gap-12"
+                    className="flex items-center gap-4 sm:gap-12"
                   >
                     {/* Player Side */}
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-1 sm:gap-2">
                       {lastClash.frames[animatingFrame].playerCard ? (
-                        <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement]?.bg || ""}`}>
+                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement]?.bg || ""}`}>
                           {(() => {
                              const style = ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement];
-const Icon = style?.icon || Sword;
-                             return <Icon className={`w-8 h-8 ${style?.color || ""}`} />;
+                             const Icon = style?.icon || Sword;
+                             return <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${style?.color || ""}`} />;
                           })()}
                         </div>
                       ) : (
-                         <div className="w-16 h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
+                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
                       )}
-                      <span className="text-xs text-green-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToEnemy}</span>
+                      <span className="text-[10px] sm:text-xs text-green-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToEnemy}</span>
                     </div>
 
                     {/* Clash Text */}
-                    <div className="text-2xl font-black text-zinc-500 uppercase italic">VS</div>
+                    <div className="text-lg sm:text-2xl font-black text-zinc-500 uppercase italic">VS</div>
 
                     {/* Enemy Side */}
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-1 sm:gap-2">
                        {lastClash.frames[animatingFrame].enemyElement ? (
-                        <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement]?.bg || ""}`}>
+                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement]?.bg || ""}`}>
                           {(() => {
                              const estyle = ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement];
-const Icon = estyle?.icon || Shield;
-                             return <Icon className={`w-8 h-8 ${estyle?.color || ""}`} />;
+                             const Icon = estyle?.icon || Shield;
+                             return <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${estyle?.color || ""}`} />;
                           })()}
                         </div>
                       ) : (
-                         <div className="w-16 h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
+                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
                       )}
-                      <span className="text-xs text-red-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToPlayer}</span>
+                      <span className="text-[10px] sm:text-xs text-red-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToPlayer}</span>
                     </div>
                   </motion.div>
                 </AnimatePresence>
@@ -265,11 +295,11 @@ const Icon = estyle?.icon || Shield;
                      className="flex flex-col items-center justify-center py-4"
                    >
                      <motion.h1 
-                       className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 italic uppercase tracking-[0.2em] drop-shadow-[0_0_30px_rgba(255,165,0,0.8)] text-center"
+                       className="text-2xl sm:text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 italic uppercase tracking-[0.2em] drop-shadow-[0_0_30px_rgba(255,165,0,0.8)] text-center"
                      >
-                       {lastClash.spellsTriggered[animatingSpellIndex]}
+                       {lastClash.spellsTriggered[animatingSpellIndex].name}
                      </motion.h1>
-                     <motion.p className="text-xl text-white mt-4 font-bold tracking-widest uppercase opacity-80">
+                     <motion.p className="text-base sm:text-xl text-white mt-2 sm:mt-4 font-bold tracking-widest uppercase opacity-80">
                        Combo Executed!
                      </motion.p>
                    </motion.div>
@@ -277,14 +307,14 @@ const Icon = estyle?.icon || Shield;
               ) : animationPhase === 'SUMMARY' ? (
                 // Summary
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center gap-2">
-                  <p className="text-sm text-zinc-400">{lastClash.description}</p>
-                  <div className="flex gap-4 mt-2">
+                  <p className="text-xs sm:text-sm text-zinc-400 px-2">{lastClash.description}</p>
+                  <div className="flex gap-4 mt-2 text-sm sm:text-base">
                      <div className="text-green-400 font-black">Dealt: {lastClash.totalEnemyDamage} dmg</div>
                      <div className="text-red-400 font-black">Received: {lastClash.totalPlayerDamage} dmg</div>
                   </div>
                   <button
                     onClick={clearLastClash}
-                    className="mt-6 px-8 py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all hover:scale-105 active:scale-95"
+                    className="mt-4 sm:mt-6 px-6 sm:px-8 py-2 sm:py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all hover:scale-105 active:scale-95"
                   >
                     Continue
                   </button>
@@ -295,22 +325,22 @@ const Icon = estyle?.icon || Shield;
         ) : (
           // Planning Interface: Player Queue
           <div className="flex flex-col items-center w-full max-w-4xl z-20">
-            <span className="text-sm text-zinc-400 font-black uppercase tracking-[0.3em] mb-4">Your Sequence</span>
-            <div className="flex gap-4">
+            <span className="text-xs sm:text-sm text-zinc-400 font-black uppercase tracking-[0.3em] mb-2 sm:mb-4">Your Sequence</span>
+            <div className="flex gap-2 sm:gap-4">
               {Array.from({ length: queueSlots }).map((_, i) => {
                 const card = playerQueue[i];
                 return (
-                  <div key={i} className={`w-20 h-28 rounded-xl border-2 flex items-center justify-center transition-all ${card ? 'bg-zinc-800 border-zinc-600 scale-105' : 'bg-zinc-900/40 border-white/5 border-dashed'}`}>
+                  <div key={i} className={`w-14 h-20 sm:w-20 sm:h-28 rounded-xl border-2 flex items-center justify-center transition-all ${card ? 'bg-zinc-800 border-zinc-600 scale-105' : 'bg-zinc-900/40 border-white/5 border-dashed'}`}>
                     {card ? (
                        <div className="flex flex-col items-center">
                           {(() => {
                              const elStyle = ELEMENT_STYLES[card.element as CardElement];
                              const Icon = elStyle.icon;
-                             return <Icon className={`w-10 h-10 ${elStyle.color} drop-shadow-md`} />;
+                             return <Icon className={`w-6 h-6 sm:w-10 sm:h-10 ${elStyle.color} drop-shadow-md`} />;
                           })()}
                        </div>
                     ) : (
-                       <span className="text-zinc-600 font-bold opacity-30 text-2xl">{i + 1}</span>
+                       <span className="text-zinc-600 font-bold opacity-30 text-lg sm:text-2xl">{i + 1}</span>
                     )}
                   </div>
                 );
@@ -318,14 +348,14 @@ const Icon = estyle?.icon || Shield;
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4 mt-10">
+            <div className="flex gap-2 sm:gap-4 mt-6 sm:mt-10 text-xs sm:text-sm">
               <button
                 onClick={playQueue}
                 disabled={playerQueue.length === 0}
-                className="flex items-center gap-3 px-10 py-4 bg-green-500 hover:bg-green-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 sm:gap-3 px-4 sm:px-10 py-2.5 sm:py-4 bg-green-500 hover:bg-green-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-xl sm:rounded-2xl transition-all hover:scale-105 active:scale-95"
               >
-                <Sword className="w-5 h-5" />
-                <span>Execute Sequence</span>
+                <Sword className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Execute</span>
               </button>
 
               <button
@@ -336,10 +366,10 @@ const Icon = estyle?.icon || Shield;
                    discardHand();
                 }}
                 disabled={playerQueue.length === 0}
-                className="flex items-center gap-3 px-8 py-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-zinc-400 font-black uppercase tracking-[0.2em] rounded-2xl border border-white/5 transition-all hover:scale-105"
+                className="flex items-center gap-2 sm:gap-3 px-4 sm:px-8 py-2.5 sm:py-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-zinc-400 font-black uppercase tracking-[0.2em] rounded-xl sm:rounded-2xl border border-white/5 transition-all hover:scale-105"
               >
-                <RotateCcw className="w-5 h-5" />
-                <span>Clear / Discard</span>
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Clear</span>
               </button>
             </div>
           </div>
@@ -347,16 +377,16 @@ const Icon = estyle?.icon || Shield;
       </div>
 
       {/* ── Player Section & Hand ── */}
-      <div className="flex flex-col items-center gap-4 w-full z-10 pb-4">
+      <div className="flex flex-col items-center gap-2 sm:gap-4 w-full z-10 pb-2 sm:pb-4">
         {/* Player Stats (Vigor & HP) */}
-        <div className="flex gap-6 w-full max-w-md bg-zinc-900/50 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
+        <div className="flex gap-3 sm:gap-6 w-full max-w-md bg-zinc-900/50 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-white/10 backdrop-blur-md">
           {/* Vigor */}
-          <div className="flex-1 flex flex-col gap-1">
-            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
-              <span className="text-blue-400 flex items-center gap-1"><Shield className="w-3 h-3"/> Vigor</span>
+          <div className="flex-1 flex flex-col gap-0.5 sm:gap-1">
+            <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-1">
+              <span className="text-blue-400 flex items-center gap-1"><Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3"/> Vigor</span>
               <span className="text-zinc-400 font-mono">{currentVigor} / {maxVigor}</span>
             </div>
-            <div className="w-full h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
+            <div className="w-full h-1.5 sm:h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
               <motion.div
                 animate={{ width: `${(currentVigor / maxVigor) * 100}%` }}
                 className="h-full bg-gradient-to-r from-blue-700 to-blue-400"
@@ -364,12 +394,12 @@ const Icon = estyle?.icon || Shield;
             </div>
           </div>
           {/* HP / Inner Injuries */}
-          <div className="flex-1 flex flex-col gap-1">
-            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest px-1">
+          <div className="flex-1 flex flex-col gap-0.5 sm:gap-1">
+            <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-1">
               <span className="text-green-500">Health</span>
               <span className="text-zinc-400 font-mono">{player.currentHp} / {player.maxHp}</span>
             </div>
-            <div className="w-full h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
+            <div className="w-full h-1.5 sm:h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
               <motion.div
                 animate={{ width: `${(player.currentHp / player.maxHp) * 100}%` }}
                 className="h-full bg-gradient-to-r from-green-700 to-green-400"
@@ -379,7 +409,7 @@ const Icon = estyle?.icon || Shield;
         </div>
 
         {/* Hand */}
-        <div className="flex flex-wrap justify-center gap-2 perspective-1000 mt-2">
+        <div className="flex sm:flex-wrap flex-nowrap overflow-x-auto sm:overflow-x-visible justify-start sm:justify-center gap-2 w-full max-w-full px-4 sm:px-0 py-1.5 sm:py-0 pb-3 sm:pb-0 scroll-smooth scrollbar-none select-none mt-1 sm:mt-2 perspective-1000">
           <AnimatePresence mode="popLayout">
             {hand.map((card, i) => {
               const isSelected = !!playerQueue.find((c) => c.id === card.id);
@@ -389,7 +419,7 @@ const Icon = estyle?.icon || Shield;
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: isSelected ? 0.3 : 1, y: 0, scale: isSelected ? 0.9 : 1 }}
                   transition={{ delay: i * 0.04 }}
-                  className={isSelected ? 'pointer-events-none' : ''}
+                  className={clsx('flex-shrink-0', isSelected ? 'pointer-events-none' : '')}
                 >
                   <CardComponent
                     card={card}
