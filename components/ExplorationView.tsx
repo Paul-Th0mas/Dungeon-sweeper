@@ -153,17 +153,33 @@ export default function ExplorationView() {
         className="relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
       >
         <div className="relative">
-          {Object.values(grid).map((tile) => {
-            const { x, y } = axialToPixel(tile.coord, hexSize);
-            return (
-              <div
-                key={coordToString(tile.coord)}
-                style={{ position: 'absolute', left: `${x}px`, top: `${y}px`, transform: 'translate(-50%, -50%)' }}
-              >
-                <HexTile tile={tile} />
-              </div>
-            );
-          })}
+          {Object.values(grid)
+            .sort((a, b) => {
+              // Sort by Y coordinate so front elements are rendered after back elements in the DOM
+              const pyA = axialToPixel(a.coord, hexSize).y;
+              const pyB = axialToPixel(b.coord, hexSize).y;
+              return pyA - pyB;
+            })
+            .map((tile) => {
+              const { x, y } = axialToPixel(tile.coord, hexSize);
+              const isoX = x;
+              const isoY = y * 0.68; // Vertical compression for isometric view (steeper angle)
+              const zIndex = Math.round(isoY + 1000);
+              return (
+                <div
+                  key={coordToString(tile.coord)}
+                  style={{
+                    position: 'absolute',
+                    left: `${isoX}px`,
+                    top: `${isoY}px`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: zIndex,
+                  }}
+                >
+                  <HexTile tile={tile} />
+                </div>
+              );
+            })}
         </div>
       </motion.div>
 

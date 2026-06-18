@@ -1,443 +1,589 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import CardComponent from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sword, RotateCcw, Skull, Flame, Droplets, Wind, Mountain, Shield } from 'lucide-react';
+import {
+  Sword, Skull, Flame, Droplets, Wind, Mountain,
+  Sparkles, ChevronRight, RotateCcw, Zap, Shield, Eye
+} from 'lucide-react';
 import { clsx } from 'clsx';
-import { StatusEffect, CardElement } from '@/lib/types';
+import { CardElement, Spell, ClashResult, EnemySpell } from '@/lib/types';
 import { useEffect, useState } from 'react';
+import Card from './Card';
 
-const ELEMENT_STYLES: Record<CardElement, { color: string; bg: string; icon: React.ElementType }> = {
-  FIRE:        { color: 'text-orange-400', bg: 'bg-orange-900/50 border-orange-500/50',  icon: Flame },
-  WATER:       { color: 'text-sky-400',    bg: 'bg-sky-900/50 border-sky-500/50',     icon: Droplets },
-  AIR:         { color: 'text-white',      bg: 'bg-zinc-800/50 border-zinc-500/50',   icon: Wind },
-  EARTH:       { color: 'text-amber-600',  bg: 'bg-amber-900/50 border-amber-500/50', icon: Mountain },
-  VOID:        { color: 'text-purple-400', bg: 'bg-purple-900/50 border-purple-500/50', icon: Skull },
+// ── Element Styles ─────────────────────────────────────────────────────────────
+const EL: Record<CardElement, { color: string; bg: string; border: string; glow: string; icon: React.ElementType; label: string }> = {
+  FIRE: { color: 'text-orange-400', bg: 'bg-orange-950/80', border: 'border-orange-500/60', glow: 'shadow-orange-500/40', icon: Flame, label: 'Fire' },
+  WATER: { color: 'text-sky-400', bg: 'bg-sky-950/80', border: 'border-sky-500/60', glow: 'shadow-sky-500/40', icon: Droplets, label: 'Water' },
+  AIR: { color: 'text-violet-300', bg: 'bg-violet-950/80', border: 'border-violet-400/60', glow: 'shadow-violet-400/40', icon: Wind, label: 'Air' },
+  EARTH: { color: 'text-amber-500', bg: 'bg-amber-950/80', border: 'border-amber-600/60', glow: 'shadow-amber-500/40', icon: Mountain, label: 'Earth' },
+  VOID: { color: 'text-purple-400', bg: 'bg-purple-950/80', border: 'border-purple-500/60', glow: 'shadow-purple-400/40', icon: Skull, label: 'Void' },
 };
 
-const STATUS_STYLES: Record<StatusEffect['type'], { color: string; icon: React.ElementType; bg: string }> = {
-  BURN:  { color: 'text-orange-400', icon: Flame,     bg: 'bg-orange-500/10 border-orange-500/20' },
-  FREEZE:{ color: 'text-sky-400',    icon: Droplets, bg: 'bg-sky-500/10 border-sky-500/20' },
-  CHAIN: { color: 'text-yellow-400', icon: Wind,       bg: 'bg-yellow-500/10 border-yellow-500/20' },
-  PUSH:  { color: 'text-emerald-400', icon: Mountain,     bg: 'bg-emerald-500/10 border-emerald-500/20' },
+// Counter wheel: key beats value
+const COUNTERS: Record<string, CardElement> = {
+  EARTH: 'FIRE', FIRE: 'AIR', AIR: 'WATER', WATER: 'EARTH',
 };
 
+function ElementToken({
+  element, size = 'md', faded = false, pulsing = false, onClick, draggable = false,
+}: {
+  element: CardElement; size?: 'sm' | 'md' | 'lg'; faded?: boolean; pulsing?: boolean;
+  onClick?: () => void; draggable?: boolean;
+}) {
+  const style = EL[element];
+  const Icon = style.icon;
+  const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-16 h-16' };
+  const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-8 h-8' };
+  return (
+    <motion.button
+      whileHover={onClick ? { scale: 1.12 } : {}}
+      whileTap={onClick ? { scale: 0.92 } : {}}
+      animate={pulsing ? { boxShadow: ['0 0 0px transparent', `0 0 18px var(--tw-shadow-color)`, '0 0 0px transparent'] } : {}}
+      transition={pulsing ? { repeat: Infinity, duration: 1.6 } : {}}
+      onClick={onClick}
+      className={clsx(
+        sizes[size], 'rounded-2xl border-2 flex items-center justify-center transition-all select-none',
+        style.bg, style.border, style.glow,
+        onClick ? 'cursor-pointer' : 'cursor-default',
+        faded && 'opacity-30 grayscale',
+        pulsing && style.glow,
+        'shadow-md',
+      )}
+    >
+      <Icon className={clsx(iconSizes[size], style.color)} />
+    </motion.button>
+  );
+}
+
+function EmptySlot({ index, size = 'md', onClick }: { index: number; size?: 'sm' | 'md' | 'lg'; onClick?: () => void }) {
+  const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-16 h-16' };
+  return (
+    <motion.button
+      whileHover={onClick ? { scale: 1.05 } : {}}
+      onClick={onClick}
+      className={clsx(
+        sizes[size], 'rounded-2xl border-2 border-dashed border-zinc-700/60 bg-zinc-900/40',
+        'flex items-center justify-center text-zinc-500 text-base font-black',
+        onClick ? 'cursor-pointer hover:border-zinc-500' : 'cursor-default',
+      )}
+    >
+      {index + 1}
+    </motion.button>
+  );
+}
+
+function SpellRecipeBadge({ spell, compact = false }: { spell: Spell | EnemySpell; compact?: boolean }) {
+  return (
+    <div className={clsx('flex items-center gap-1.5 flex-wrap', compact && 'gap-1')}>
+      {spell.recipe.map((el, i) => {
+        const style = EL[el];
+        const Icon = style.icon;
+        return (
+          <span key={i} className={clsx(
+            'flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border text-[10px] font-bold',
+            style.bg, style.border, style.color,
+          )}>
+            <Icon className="w-2.5 h-2.5" />
+            {el[0]}
+          </span>
+        );
+      })}
+      <span className="text-zinc-400 text-[10px] font-bold ml-1">→ {spell.baseDamage} dmg</span>
+    </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function CombatView() {
-  const { combatState, player, lastClash, selectCard, deselectCard, playQueue, discardHand, clearLastClash } = useGameStore();
-  const [animationPhase, setAnimationPhase] = useState<'NONE' | 'CLASHING' | 'SPELLS' | 'SUMMARY'>('NONE');
-  const [animatingFrame, setAnimatingFrame] = useState(0);
-  const [animatingSpellIndex, setAnimatingSpellIndex] = useState(0);
+  const {
+    gamePhase, pendingLevelUpChoices, claimRewardSpell,
+    combatState, player, lastClash,
+    placeElement, injectSpare, returnSpareFromSlot, clearSequence,
+    submitSequence, clearLastClash,
+  } = useGameStore();
+
+  const [animPhase, setAnimPhase] = useState<'NONE' | 'RESOLVING' | 'SPELLS' | 'SUMMARY'>('NONE');
+  const [animSlot, setAnimSlot] = useState(0);
+  const [animSpell, setAnimSpell] = useState(0);
   const [displayedEnemyHp, setDisplayedEnemyHp] = useState(0);
 
+  // Kick off animations when a clash arrives
   useEffect(() => {
-    if (lastClash && lastClash.frames.length > 0) {
-      setAnimationPhase('CLASHING');
-      setAnimatingFrame(0);
-      setAnimatingSpellIndex(0);
-      setDisplayedEnemyHp(lastClash.enemyHpAtStart);
+    if (lastClash) {
+      if (lastClash.slots.length > 0) {
+        setAnimPhase('RESOLVING');
+        setAnimSlot(0);
+        setAnimSpell(0);
+        setDisplayedEnemyHp(lastClash.enemyHpAtStart);
+      } else if (lastClash.triggeredSpells && lastClash.triggeredSpells.length > 0) {
+        setAnimPhase('SPELLS');
+        setAnimSlot(0);
+        setAnimSpell(0);
+        setDisplayedEnemyHp(lastClash.enemyHpAtStart);
+      } else {
+        setAnimPhase('SUMMARY');
+        setAnimSlot(0);
+        setAnimSpell(0);
+        setDisplayedEnemyHp(Math.max(0, lastClash.enemyHpAtStart - lastClash.totalEnemyDamage));
+      }
     } else {
-      setAnimationPhase('NONE');
-      if (combatState?.enemy) {
-        setDisplayedEnemyHp(combatState.enemy.currentHp);
-      }
+      setAnimPhase('NONE');
+      if (combatState?.enemy) setDisplayedEnemyHp(combatState.enemy.currentHp);
     }
-  }, [lastClash, combatState?.enemy]);
+  }, [lastClash]);
 
-  // Handle phases
   useEffect(() => {
-    if (animationPhase === 'CLASHING') {
-      const interval = setInterval(() => {
-        setAnimatingFrame(prev => {
-          const currentFrame = lastClash!.frames[prev];
-          if (currentFrame) {
-            setDisplayedEnemyHp(currentFrame.enemyHpAfter);
-          }
-          
-          const isEnemyDefeated = currentFrame && currentFrame.enemyHpAfter <= 0;
+    if (!combatState?.enemy) return;
+    if (animPhase === 'NONE') setDisplayedEnemyHp(combatState.enemy.currentHp);
+  }, [combatState?.enemy?.currentHp]);
 
-          if (prev >= lastClash!.frames.length - 1 || isEnemyDefeated) {
-            clearInterval(interval);
-            if (isEnemyDefeated) {
-              setAnimationPhase('SUMMARY');
-            } else if (lastClash!.spellsTriggered.length > 0) {
-              setAnimationPhase('SPELLS');
-            } else {
-              setAnimationPhase('SUMMARY');
-            }
-            return prev + 1;
-          }
-          return prev + 1;
-        });
-      }, 800);
-      return () => clearInterval(interval);
-    }
-
-    if (animationPhase === 'SPELLS') {
-      const interval = setInterval(() => {
-        setAnimatingSpellIndex(prev => {
-          if (prev >= lastClash!.spellsTriggered.length - 1) {
-            clearInterval(interval);
-            setAnimationPhase('SUMMARY');
-            return prev + 1;
-          }
-          return prev + 1;
-        });
-      }, 2000); // 2 seconds per spell animation
-      return () => clearInterval(interval);
-    }
-  }, [animationPhase, lastClash]);
-
-  // Update displayed HP during Spell animations
+  // Slot-by-slot animation
   useEffect(() => {
-    if (animationPhase === 'SPELLS' && lastClash) {
-      const currentSpell = lastClash.spellsTriggered[animatingSpellIndex];
-      if (currentSpell) {
-        setDisplayedEnemyHp(currentSpell.enemyHpAfter);
-      }
-    }
-  }, [animationPhase, animatingSpellIndex, lastClash]);
+    if (animPhase !== 'RESOLVING' || !lastClash) return;
+    const interval = setInterval(() => {
+      setAnimSlot(prev => {
+        const next = prev + 1;
+        if (next >= lastClash.slots.length) {
+          clearInterval(interval);
+          if (lastClash.triggeredSpells.length > 0) {
+            setAnimPhase('SPELLS');
+          } else {
+            setAnimPhase('SUMMARY');
+            setDisplayedEnemyHp(Math.max(0, lastClash.enemyHpAtStart - lastClash.totalEnemyDamage));
+          }
+        }
+        return next;
+      });
+    }, 600);
+    return () => clearInterval(interval);
+  }, [animPhase, lastClash]);
 
-  if (!combatState || !combatState.enemy || !player) {
-    return <div className="flex items-center justify-center h-screen bg-zinc-950 text-white">Loading Combat State...</div>;
+  // Spell animation
+  useEffect(() => {
+    if (animPhase !== 'SPELLS' || !lastClash) return;
+    setDisplayedEnemyHp(lastClash.triggeredSpells[0]?.enemyHpAfter ?? displayedEnemyHp);
+    const interval = setInterval(() => {
+      setAnimSpell(prev => {
+        const next = prev + 1;
+        if (next < lastClash.triggeredSpells.length) {
+          setDisplayedEnemyHp(lastClash.triggeredSpells[next].enemyHpAfter);
+        } else {
+          clearInterval(interval);
+          setAnimPhase('SUMMARY');
+          setDisplayedEnemyHp(Math.max(0, lastClash.enemyHpAtStart - lastClash.totalEnemyDamage));
+        }
+        return next;
+      });
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [animPhase, lastClash]);
+
+  // ── Spell Reward Screen ──────────────────────────────────────────────────────
+  if (gamePhase === 'SPELL_REWARD' && pendingLevelUpChoices?.type === 'SPELL_REWARDS') {
+    const choices = pendingLevelUpChoices.choices as any[];
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-screen bg-zinc-950 p-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/30 via-zinc-950 to-teal-950/20 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/8 rounded-full blur-[120px] pointer-events-none" />
+
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative z-10 w-full max-w-3xl flex flex-col items-center">
+          <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 2.5 }} className="p-4 bg-emerald-500/20 rounded-2xl mb-4 border border-emerald-500/30">
+            <Sparkles className="w-10 h-10 text-emerald-400" />
+          </motion.div>
+          <div className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400 mb-1">Victory!</div>
+          <h2 className="text-4xl font-black uppercase tracking-tight bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent italic mb-2">
+            Choose a Spell
+          </h2>
+          <div className="flex gap-6 text-xs font-semibold text-zinc-400 mb-8">
+            <span>+<span className="text-yellow-400 font-bold">{pendingLevelUpChoices.xpGained} XP</span></span>
+            <span>+<span className="text-amber-400 font-bold">{pendingLevelUpChoices.goldGained}g</span></span>
+            {pendingLevelUpChoices.spareDrops && (
+              <span className="flex items-center gap-1">
+                Drops: {(pendingLevelUpChoices.spareDrops as CardElement[]).map((el, i) => {
+                  const style = EL[el]; const Icon = style.icon;
+                  return <Icon key={i} className={clsx('w-3.5 h-3.5', style.color)} />;
+                })}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-5 w-full mb-8">
+            {choices.map((choice: any, idx: number) => (
+              <motion.button
+                key={idx}
+                initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }}
+                onClick={() => claimRewardSpell(idx)}
+                className="flex flex-col gap-3 p-5 rounded-2xl bg-zinc-900/60 border border-white/8 hover:border-emerald-500/50 hover:bg-emerald-500/8 transition-all group text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <span className={clsx('text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border',
+                    choice.isAdvanced ? 'text-violet-300 border-violet-500/50 bg-violet-950/50' : 'text-zinc-400 border-zinc-600/50 bg-zinc-800/50'
+                  )}>
+                    {choice.isAdvanced ? 'Advanced' : 'Basic'}
+                  </span>
+                  <Zap className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+                </div>
+                <div className="font-black text-zinc-100 text-sm">{choice.name}</div>
+                <SpellRecipeBadge spell={choice} />
+              </motion.button>
+            ))}
+          </div>
+
+          <button onClick={() => claimRewardSpell(-1)} className="px-8 py-3 bg-zinc-900/60 border border-white/8 hover:border-white/20 text-zinc-400 hover:text-white font-black uppercase tracking-widest rounded-xl transition-all text-xs">
+            Skip Reward
+          </button>
+        </motion.div>
+      </div>
+    );
   }
 
-  const { enemy, hand, playerQueue, enemyQueue, enemyQueueRevealed, queueSlots, maxVigor, currentVigor } = combatState;
-  const statusEffects: StatusEffect[] = enemy.statusEffects ?? [];
+  if (!combatState || !combatState.enemy || !player) {
+    return <div className="flex items-center justify-center h-screen bg-zinc-950 text-white">Loading...</div>;
+  }
+
+  const { enemy, activePool, spareElements, playerSequence, enemyQueue, boardLength } = combatState;
+
+  // Build a "remaining pool" — elements in activePool not yet placed in sequence
+  const placedElements = playerSequence.filter(Boolean) as CardElement[];
+  const remainingPool = [...activePool];
+  for (const placed of placedElements) {
+    const idx = remainingPool.indexOf(placed);
+    if (idx !== -1) remainingPool.splice(idx, 1);
+  }
+
+  const canSubmit = placedElements.length > 0 && animPhase === 'NONE';
+
+  // Handle clicking an element from the pool — auto-place in first empty slot
+  const handlePoolClick = (element: CardElement, poolIdx: number) => {
+    if (animPhase !== 'NONE') return;
+    const firstEmptyIdx = playerSequence.indexOf(null);
+    if (firstEmptyIdx !== -1) {
+      placeElement(element, firstEmptyIdx);
+    }
+  };
+
+  // Handle clicking a placed element — clear and return it
+  const handleSlotClick = (slotIdx: number) => {
+    if (animPhase !== 'NONE') return;
+    if (playerSequence[slotIdx] !== null) {
+      returnSpareFromSlot(slotIdx);
+    }
+  };
 
   return (
-    <div className="relative flex flex-col items-center justify-between w-full h-screen overflow-hidden py-3 sm:py-6 px-2 sm:px-4 bg-zinc-950">
-      
-      {/* ── Elemental Counters Panel ── */}
-      <div className="absolute top-6 left-6 flex flex-col gap-2 p-4 bg-zinc-900/40 border border-white/5 rounded-2xl backdrop-blur-md z-10 pointer-events-none hidden sm:flex">
-        <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-1 text-center">Element Advantages</span>
-        <div className="flex flex-col gap-2">
-          {/* Earth beats Fire */}
-          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Mountain className="w-4 h-4 text-amber-600" />
-            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Flame className="w-4 h-4 text-orange-400" />
-          </div>
-          {/* Fire beats Air */}
-          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Flame className="w-4 h-4 text-orange-400" />
-            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Wind className="w-4 h-4 text-white" />
-          </div>
-          {/* Air beats Water */}
-          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Wind className="w-4 h-4 text-white" />
-            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Droplets className="w-4 h-4 text-sky-400" />
-          </div>
-          {/* Water beats Earth */}
-          <div className="flex items-center justify-between gap-3 text-sm bg-zinc-950/50 p-2 rounded-xl border border-white/5">
-            <Droplets className="w-4 h-4 text-sky-400" />
-            <span className="text-zinc-600 font-black text-[10px]">&gt;</span>
-            <Mountain className="w-4 h-4 text-amber-600" />
-          </div>
-        </div>
-      </div>
+    <div className="relative flex flex-col w-full h-screen overflow-hidden bg-zinc-950">
+      {/* Atmospheric background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-red-950/20 via-zinc-950 to-zinc-950 pointer-events-none" />
+      {enemy.isEliteOrBoss && (
+        <div className="absolute inset-0 bg-gradient-to-tr from-purple-950/20 via-transparent to-transparent pointer-events-none" />
+      )}
 
-      {/* ── Enemy Section ── */}
-      <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col items-center gap-1.5 sm:gap-3 w-full max-w-2xl z-10">
-        <div className="flex items-center gap-2 sm:gap-4">
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
-            className="p-2 sm:p-4 bg-zinc-900/50 border border-red-900/30 rounded-full backdrop-blur-md"
-          >
-            <Skull className="w-6 h-6 sm:w-10 sm:h-10 text-red-500" />
+      {/* ── Top: Enemy Section ─────────────────────────────────────────────── */}
+      <motion.div initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        className="relative z-10 flex flex-col items-center pt-6 pb-4 px-6 gap-3">
+
+        {/* Enemy name + HP */}
+        <div className="flex items-center gap-4">
+          <motion.div animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+            className={clsx('p-3 rounded-2xl border shadow-lg border-white/10', enemy.isEliteOrBoss
+              ? 'bg-purple-950/60 border-purple-500/40 shadow-purple-500/10' : 'bg-zinc-900/60 border-red-900/40 shadow-red-500/10')}>
+            <Skull className={clsx('w-8 h-8', enemy.isEliteOrBoss ? 'text-purple-400' : 'text-red-500')} />
           </motion.div>
-          <div className="flex flex-col gap-0.5 sm:gap-1">
-            <h2 className="text-lg sm:text-xl font-black uppercase tracking-widest text-zinc-100 italic">{enemy.name}</h2>
-            {/* Enemy HP as Vigor for now */}
-            <div className="w-36 h-2 sm:w-48 sm:h-3 bg-zinc-900 rounded-full border border-white/5 p-[1px] sm:p-[2px] overflow-hidden">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-black uppercase tracking-wider text-zinc-100">{enemy.name}</h2>
+              {enemy.isEliteOrBoss && (
+                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-purple-950/60 border border-purple-500/40 text-purple-300">
+                  {enemy.tier === 3 ? 'Boss' : 'Elite'}
+                </span>
+              )}
+              <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-zinc-800/60 border border-zinc-600/40 text-zinc-400 flex items-center gap-1">
+                <Zap className="w-3 h-3" />{enemy.mana} Mana
+              </span>
+            </div>
+            {/* HP bar */}
+            <div className="w-80 h-3 bg-zinc-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
               <motion.div
                 animate={{ width: `${(displayedEnemyHp / enemy.maxHp) * 100}%` }}
-                className="h-full bg-gradient-to-r from-red-800 to-red-500 rounded-full"
+                transition={{ duration: 0.4 }}
+                className={clsx('h-full rounded-full', enemy.isEliteOrBoss
+                  ? 'bg-gradient-to-r from-purple-700 to-purple-400'
+                  : 'bg-gradient-to-r from-red-800 to-red-500')}
               />
             </div>
-            <div className="flex justify-between items-center mt-0.5 min-w-[144px] sm:min-w-[192px]">
-              {enemy.elementBias && (
-                <div className="flex items-center gap-1 sm:gap-1.5 bg-zinc-900/60 px-1 sm:px-1.5 py-0.5 rounded-lg border border-white/5">
-                  {Object.entries(enemy.elementBias)
-                    .filter(([, weight]) => (weight || 0) > 0)
-                    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                    .map(([element, weight]) => {
-                      const el = element as CardElement;
-                      const style = ELEMENT_STYLES[el];
-                      const Icon = style?.icon || Flame;
-                      return (
-                        <span key={element} className={clsx("flex items-center gap-0.5 text-[8px] sm:text-[9px] font-mono font-bold", style?.color)}>
-                          <Icon className="w-2 sm:w-2.5 h-2 sm:h-2.5" />
-                          {Math.round((weight || 0) * 100)}%
-                        </span>
-                      );
-                    })}
-                </div>
-              )}
-              <div className="text-[9px] sm:text-[10px] text-zinc-400 font-mono text-right flex-1">{displayedEnemyHp} / {enemy.maxHp} HP</div>
-            </div>
+            <div className="text-[10px] text-zinc-500 font-mono font-bold">{displayedEnemyHp} / {enemy.maxHp} HP</div>
           </div>
         </div>
 
-        {/* Status Effects */}
-        {statusEffects.length > 0 && (
-          <div className="flex flex-wrap gap-2 justify-center">
-            {statusEffects.map((effect, i) => {
-              const s = STATUS_STYLES[effect.type];
-              const SIcon = s.icon;
-              return (
-                <span key={i} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold ${s.bg} ${s.color}`}>
-                  <SIcon className="w-3 h-3" /> {effect.label}
-                </span>
-              );
-            })}
-          </div>
-        )}
+        {/* Enemy Spellbook (always visible) */}
+        <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
+          {enemy.spellbook.map((spell, i) => (
+            <div key={i} className={clsx(
+              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs shadow-md',
+              'bg-red-950/30 border-red-800/30',
+            )}>
+              <Eye className="w-3 h-3 text-red-400/60" />
+              <span className="font-bold text-zinc-300 mr-1">{spell.name}</span>
+              <SpellRecipeBadge spell={spell} compact />
+            </div>
+          ))}
+        </div>
 
-        {/* Enemy Intent Queue */}
-        <div className="mt-1 sm:mt-2 flex flex-col items-center">
-          <span className="text-[9px] sm:text-[10px] text-red-400/70 font-black uppercase tracking-widest mb-0.5 sm:mb-1">Enemy Intent</span>
-          <div className="flex gap-1.5 sm:gap-2">
-            {enemyQueue.map((el, i) => {
-              const isRevealed = enemyQueueRevealed;
-              const style = isRevealed ? ELEMENT_STYLES[el] : null;
-              const Icon = style?.icon;
-              return (
-                <div key={i} className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg border-2 flex items-center justify-center shadow-lg ${isRevealed ? style!.bg : 'bg-zinc-800 border-zinc-700'}`}>
-                  {isRevealed && Icon ? <Icon className={`w-4 h-4 sm:w-6 sm:h-6 ${style.color}`} /> : <span className="text-zinc-600 font-bold text-xs sm:text-base">?</span>}
-                </div>
-              );
-            })}
+        {/* Enemy Queue (hidden) */}
+        <div className="flex flex-col items-center gap-1.5">
+          <span className="text-[9px] font-black uppercase tracking-widest text-red-400/60">Enemy Intent</span>
+          <div className="flex gap-2">
+            {Array.from({ length: enemy.mana }).map((_, i) => (
+              <div key={i} className="w-12 h-12 rounded-xl border-2 border-zinc-800 bg-zinc-900/60 flex items-center justify-center shadow-md">
+                <span className="text-zinc-600 font-black text-base">?</span>
+              </div>
+            ))}
           </div>
         </div>
       </motion.div>
 
-      {/* ── Clash Animation Area ── */}
-      <div className="flex-1 w-full flex flex-col items-center justify-center relative">
-        {animationPhase !== 'NONE' && lastClash ? (
-          <div className="flex flex-col items-center gap-2 sm:gap-4 p-3 sm:p-6 glass rounded-xl sm:rounded-2xl border border-white/10 w-full max-w-2xl relative overflow-hidden">
-            
-            {/* Dynamic Background during Spells */}
-            <AnimatePresence>
-              {animationPhase === 'SPELLS' && (
-                <motion.div 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }} 
-                  exit={{ opacity: 0 }} 
-                  className="absolute inset-0 bg-gradient-to-tr from-orange-900/40 via-red-900/40 to-yellow-900/40 z-0" 
-                />
-              )}
-            </AnimatePresence>
+      {/* ── Middle: Clash Arena / Sequence Board ──────────────────────────────── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-4 relative z-10">
 
-            <h3 className="text-lg sm:text-xl font-black uppercase text-zinc-300 italic tracking-widest mb-2 sm:mb-4 z-10">
-              {animationPhase === 'CLASHING' ? 'Clashing...' : animationPhase === 'SPELLS' ? 'Spell Triggered!' : displayedEnemyHp <= 0 ? 'Enemy Defeated!' : 'Clash Complete'}
-            </h3>
-            
-            <div className="z-10 w-full flex justify-center min-h-[90px] sm:min-h-[120px] items-center">
-              {animationPhase === 'CLASHING' && animatingFrame < lastClash.frames.length ? (
-                // Show current frame clashing
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={animatingFrame}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 1.2, opacity: 0 }}
-                    className="flex items-center gap-4 sm:gap-12"
-                  >
-                    {/* Player Side */}
-                    <div className="flex flex-col items-center gap-1 sm:gap-2">
-                      {lastClash.frames[animatingFrame].playerCard ? (
-                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement]?.bg || ""}`}>
-                          {(() => {
-                             const style = ELEMENT_STYLES[lastClash.frames[animatingFrame].playerCard!.element as CardElement];
-                             const Icon = style?.icon || Sword;
-                             return <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${style?.color || ""}`} />;
-                          })()}
-                        </div>
-                      ) : (
-                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
-                      )}
-                      <span className="text-[10px] sm:text-xs text-green-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToEnemy}</span>
-                    </div>
+        {/* Clash Animation Overlay */}
+        <AnimatePresence mode="wait">
+          {animPhase !== 'NONE' && lastClash ? (
+            <motion.div key="clash-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="w-full max-w-2xl bg-zinc-900/70 border border-white/8 rounded-2xl p-4 backdrop-blur-md flex flex-col items-center gap-3">
 
-                    {/* Clash Text */}
-                    <div className="text-lg sm:text-2xl font-black text-zinc-500 uppercase italic">VS</div>
-
-                    {/* Enemy Side */}
-                    <div className="flex flex-col items-center gap-1 sm:gap-2">
-                       {lastClash.frames[animatingFrame].enemyElement ? (
-                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 flex items-center justify-center ${ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement]?.bg || ""}`}>
-                          {(() => {
-                             const estyle = ELEMENT_STYLES[lastClash.frames[animatingFrame].enemyElement as CardElement];
-                             const Icon = estyle?.icon || Shield;
-                             return <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${estyle?.color || ""}`} />;
-                          })()}
-                        </div>
-                      ) : (
-                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600">-</div>
-                      )}
-                      <span className="text-[10px] sm:text-xs text-red-400 font-mono">Dmg: {lastClash.frames[animatingFrame].damageToPlayer}</span>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              ) : animationPhase === 'SPELLS' && animatingSpellIndex < lastClash.spellsTriggered.length ? (
-                // Show combo sequence visualization
-                <AnimatePresence mode="wait">
-                   <motion.div
-                     key={animatingSpellIndex}
-                     initial={{ scale: 0.5, opacity: 0, y: 20 }}
-                     animate={{ scale: [1.2, 1], opacity: 1, y: 0 }}
-                     exit={{ scale: 1.5, opacity: 0, filter: 'blur(10px)' }}
-                     transition={{ duration: 0.8 }}
-                     className="flex flex-col items-center justify-center py-4"
-                   >
-                     <motion.h1 
-                       className="text-2xl sm:text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 italic uppercase tracking-[0.2em] drop-shadow-[0_0_30px_rgba(255,165,0,0.8)] text-center"
-                     >
-                       {lastClash.spellsTriggered[animatingSpellIndex].name}
-                     </motion.h1>
-                     <motion.p className="text-base sm:text-xl text-white mt-2 sm:mt-4 font-bold tracking-widest uppercase opacity-80">
-                       Combo Executed!
-                     </motion.p>
-                   </motion.div>
-                 </AnimatePresence>
-              ) : animationPhase === 'SUMMARY' ? (
-                // Summary
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center gap-2">
-                  <p className="text-xs sm:text-sm text-zinc-400 px-2">{lastClash.description}</p>
-                  <div className="flex gap-4 mt-2 text-sm sm:text-base">
-                     <div className="text-green-400 font-black">Dealt: {lastClash.totalEnemyDamage} dmg</div>
-                     <div className="text-red-400 font-black">Received: {lastClash.totalPlayerDamage} dmg</div>
+              {animPhase === 'RESOLVING' && (
+                <>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-300">Sequence Resolving...</h3>
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    {lastClash.slots.map((slot, i) => {
+                      const isResolved = i < animSlot;
+                      const pStyle = slot.playerElement ? EL[slot.playerElement] : null;
+                      const eStyle = slot.enemyElement ? EL[slot.enemyElement] : null;
+                      const PIcon = pStyle?.icon;
+                      const EIcon = eStyle?.icon;
+                      const resultColors = {
+                        COUNTER: 'text-emerald-400',
+                        COUNTERED: 'text-red-400',
+                        NEUTRAL: 'text-zinc-400',
+                        EMPTY: 'text-red-500',
+                      };
+                      return (
+                        <motion.div key={i}
+                          initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: i * 0.05 }}
+                          className={clsx('flex flex-col items-center gap-1 p-2 rounded-xl border',
+                            isResolved ? 'bg-zinc-800/80 border-zinc-600/40' : 'bg-zinc-900/40 border-zinc-800/40'
+                          )}>
+                          <div className="flex items-center gap-2">
+                            {PIcon && pStyle
+                              ? <div className={clsx('w-10 h-10 rounded-xl border flex items-center justify-center shadow-md', pStyle.bg, pStyle.border)}><PIcon className={clsx('w-5 h-5', pStyle.color)} /></div>
+                              : <div className="w-10 h-10 rounded-xl border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-700 text-xs">—</div>}
+                            <span className="text-zinc-600 text-xs font-bold">vs</span>
+                            {EIcon && eStyle
+                              ? <div className={clsx('w-10 h-10 rounded-xl border flex items-center justify-center shadow-md', eStyle.bg, eStyle.border)}><EIcon className={clsx('w-5 h-5', eStyle.color)} /></div>
+                              : <div className="w-10 h-10 rounded-xl border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-700 text-xs">?</div>}
+                          </div>
+                          {isResolved && (
+                            <span className={clsx('text-[9px] font-black uppercase', resultColors[slot.result])}>
+                              {slot.result === 'COUNTER' ? '✓ Counter' : slot.result === 'COUNTERED' ? `−${slot.damageToPlayer}` : slot.result === 'EMPTY' ? `−${slot.damageToPlayer}` : '~'}
+                            </span>
+                          )}
+                        </motion.div>
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={clearLastClash}
-                    className="mt-4 sm:mt-6 px-6 sm:px-8 py-2 sm:py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all hover:scale-105 active:scale-95"
-                  >
+                </>
+              )}
+
+              {animPhase === 'SPELLS' && lastClash.triggeredSpells[animSpell] && (
+                <motion.div key={animSpell} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.3, opacity: 0 }} className="flex flex-col items-center gap-3 py-4">
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-950/40 via-red-950/30 to-yellow-950/20 rounded-2xl pointer-events-none" />
+                  <Sparkles className="w-8 h-8 text-yellow-400 animate-pulse" />
+                  <h1 className="text-3xl font-black uppercase tracking-widest bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent italic">
+                    {lastClash.triggeredSpells[animSpell].name}
+                  </h1>
+                  <p className="text-xl font-black text-white">
+                    {lastClash.triggeredSpells[animSpell].damage} damage!
+                  </p>
+                </motion.div>
+              )}
+
+              {animPhase === 'SUMMARY' && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 w-full">
+                  <div className={clsx('flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border',
+                    lastClash.enemyDamageNegated
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
+                      : 'bg-zinc-800/60 border-zinc-600/40 text-zinc-300'
+                  )}>
+                    <Shield className="w-4 h-4" />
+                    {lastClash.enemyDamageNegated
+                      ? `Enemy damage NEGATED! (${Math.round(lastClash.counterPercent * 100)}% countered)`
+                      : `${Math.round(lastClash.counterPercent * 100)}% countered — damage not negated`}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-sm text-xs">
+                    <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-3 text-center">
+                      <div className="text-zinc-500 mb-1">Dealt to Enemy</div>
+                      <div className="text-green-400 font-black text-lg">{lastClash.totalEnemyDamage}</div>
+                    </div>
+                    <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-3 text-center">
+                      <div className="text-zinc-500 mb-1">Taken</div>
+                      <div className="text-red-400 font-black text-lg">{lastClash.totalPlayerDamage}</div>
+                    </div>
+                  </div>
+                  {(lastClash.triggeredSpells.length > 0 || lastClash.basicStrikeDamage > 0) && (
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {lastClash.triggeredSpells.map((ts, i) => (
+                        <span key={i} className="text-[10px] px-2 py-1 rounded-full bg-yellow-950/60 border border-yellow-600/40 text-yellow-300 font-bold">
+                          ✦ {ts.name}: {ts.damage} dmg
+                        </span>
+                      ))}
+                      {lastClash.basicStrikeDamage > 0 && (
+                        <span className="text-[10px] px-2 py-1 rounded-full bg-sky-950/60 border border-sky-600/40 text-sky-300 font-bold">
+                          ⚡ Basic Strike: {lastClash.basicStrikeDamage} dmg
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-zinc-500 italic text-center max-w-xs">{lastClash.description}</p>
+                  <button onClick={clearLastClash}
+                    className="mt-2 px-8 py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all hover:scale-105 text-xs shadow-md">
                     Continue
                   </button>
                 </motion.div>
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          // Planning Interface: Player Queue
-          <div className="flex flex-col items-center w-full max-w-4xl z-20">
-            <span className="text-xs sm:text-sm text-zinc-400 font-black uppercase tracking-[0.3em] mb-2 sm:mb-4">Your Sequence</span>
-            <div className="flex gap-2 sm:gap-4">
-              {Array.from({ length: queueSlots }).map((_, i) => {
-                const card = playerQueue[i];
-                return (
-                  <div key={i} className={`w-14 h-20 sm:w-20 sm:h-28 rounded-xl border-2 flex items-center justify-center transition-all ${card ? 'bg-zinc-800 border-zinc-600 scale-105' : 'bg-zinc-900/40 border-white/5 border-dashed'}`}>
-                    {card ? (
-                       <div className="flex flex-col items-center">
-                          {(() => {
-                             const elStyle = ELEMENT_STYLES[card.element as CardElement];
-                             const Icon = elStyle.icon;
-                             return <Icon className={`w-6 h-6 sm:w-10 sm:h-10 ${elStyle.color} drop-shadow-md`} />;
-                          })()}
-                       </div>
-                    ) : (
-                       <span className="text-zinc-600 font-bold opacity-30 text-lg sm:text-2xl">{i + 1}</span>
-                    )}
+              )}
+            </motion.div>
+          ) : (
+            /* ── Planning Mode ────────────────────────────────────────────── */
+            <motion.div key="plan-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4 w-full max-w-2xl">
+
+              {/* Equipped Spells Cards */}
+              <div className="flex flex-col items-center gap-2 w-full">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">Your Spells</span>
+                <div className="flex gap-4 justify-center flex-wrap max-w-4xl">
+                  {player.spells.filter(s => s.equipped).map((spell) => (
+                    <Card key={spell.id} spell={spell} compact />
+                  ))}
+                </div>
+              </div>
+
+              {/* Elemental Counters Chart */}
+              <div className="flex flex-col items-center gap-2 w-full bg-zinc-900/35 border border-white/5 rounded-2xl py-2.5 px-4 backdrop-blur-sm shadow-inner max-w-lg">
+                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">Clash Rules (Counters negate enemy slots)</div>
+                <div className="flex items-center gap-2.5 text-xs text-zinc-400 font-bold flex-wrap justify-center select-none">
+                  <span className="flex items-center gap-1"><Mountain className="w-4 h-4 text-amber-500" /> Earth <ChevronRight className="w-3.5 h-3.5 text-zinc-600" /> <Flame className="w-4 h-4 text-orange-400" /> Fire</span>
+                  <span className="text-zinc-700">|</span>
+                  <span className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-400" /> Fire <ChevronRight className="w-3.5 h-3.5 text-zinc-600" /> <Wind className="w-4 h-4 text-violet-300" /> Air</span>
+                  <span className="text-zinc-700">|</span>
+                  <span className="flex items-center gap-1"><Wind className="w-4 h-4 text-violet-300" /> Air <ChevronRight className="w-3.5 h-3.5 text-zinc-600" /> <Droplets className="w-4 h-4 text-sky-400" /> Water</span>
+                  <span className="text-zinc-700">|</span>
+                  <span className="flex items-center gap-1"><Droplets className="w-4 h-4 text-sky-400" /> Water <ChevronRight className="w-3.5 h-3.5 text-zinc-600" /> <Mountain className="w-4 h-4 text-amber-500" /> Earth</span>
+                </div>
+              </div>
+
+              {/* Sequence Board */}
+              <div className="flex flex-col items-center gap-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
+                  Your Sequence ({placedElements.length}/{boardLength})
+                </span>
+                <div className="flex gap-2.5">
+                  {playerSequence.map((el, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      {el ? (
+                        <ElementToken element={el} size="lg" onClick={() => handleSlotClick(i)} />
+                      ) : (
+                        <EmptySlot index={i} size="lg" onClick={() => handleSlotClick(i)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Available Pool */}
+              <div className="flex flex-col items-center gap-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">
+                  Element Pool — tap to place
+                </span>
+                <div className="flex gap-2.5 flex-wrap justify-center">
+                  {remainingPool.map((el, i) => (
+                    <ElementToken
+                      key={`pool-${i}`}
+                      element={el}
+                      size="lg"
+                      onClick={() => handlePoolClick(el, i)}
+                    />
+                  ))}
+                  {remainingPool.length === 0 && (
+                    <span className="text-zinc-700 text-xs italic">Pool empty — place elements or inject Spares</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Spare Elements Inventory */}
+              {(Object.values(spareElements).some(v => v > 0)) && (
+                <div className="flex flex-col items-center gap-2 w-full max-w-sm">
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">Spare Elements — click to inject</span>
+                  <div className="flex gap-3 flex-wrap justify-center">
+                    {(Object.entries(spareElements) as [CardElement, number][])
+                      .filter(([, count]) => count > 0)
+                      .map(([el, count]) => {
+                        const style = EL[el];
+                        const Icon = style.icon;
+                        return (
+                          <motion.button key={el}
+                            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+                            onClick={() => injectSpare(el)}
+                            className={clsx('flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all', style.bg, style.border)}>
+                            <Icon className={clsx('w-4 h-4', style.color)} />
+                            <span className={clsx('text-xs font-black', style.color)}>×{count}</span>
+                          </motion.button>
+                        );
+                      })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
 
-            {/* Action Buttons */}
-            <div className="flex gap-2 sm:gap-4 mt-6 sm:mt-10 text-xs sm:text-sm">
-              <button
-                onClick={playQueue}
-                disabled={playerQueue.length === 0}
-                className="flex items-center gap-2 sm:gap-3 px-4 sm:px-10 py-2.5 sm:py-4 bg-green-500 hover:bg-green-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-black uppercase tracking-[0.2em] rounded-xl sm:rounded-2xl transition-all hover:scale-105 active:scale-95"
-              >
-                <Sword className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Execute</span>
-              </button>
-
-              <button
-                onClick={() => {
-                   // Quickly deselect all by clicking them out of queue (we can just loop or refresh)
-                   // But since store only supports deselectCard individually, we can just clear them or let them discard.
-                   // Actually, discardHand is available.
-                   discardHand();
-                }}
-                disabled={playerQueue.length === 0}
-                className="flex items-center gap-2 sm:gap-3 px-4 sm:px-8 py-2.5 sm:py-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-zinc-400 font-black uppercase tracking-[0.2em] rounded-xl sm:rounded-2xl border border-white/5 transition-all hover:scale-105"
-              >
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Clear</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Player Section & Hand ── */}
-      <div className="flex flex-col items-center gap-2 sm:gap-4 w-full z-10 pb-2 sm:pb-4">
-        {/* Player Stats (Vigor & HP) */}
-        <div className="flex gap-3 sm:gap-6 w-full max-w-md bg-zinc-900/50 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-white/10 backdrop-blur-md">
-          {/* Vigor */}
-          <div className="flex-1 flex flex-col gap-0.5 sm:gap-1">
-            <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-1">
-              <span className="text-blue-400 flex items-center gap-1"><Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3"/> Vigor</span>
-              <span className="text-zinc-400 font-mono">{currentVigor} / {maxVigor}</span>
-            </div>
-            <div className="w-full h-1.5 sm:h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
-              <motion.div
-                animate={{ width: `${(currentVigor / maxVigor) * 100}%` }}
-                className="h-full bg-gradient-to-r from-blue-700 to-blue-400"
-              />
-            </div>
-          </div>
-          {/* HP / Inner Injuries */}
-          <div className="flex-1 flex flex-col gap-0.5 sm:gap-1">
-            <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-1">
-              <span className="text-green-500">Health</span>
-              <span className="text-zinc-400 font-mono">{player.currentHp} / {player.maxHp}</span>
-            </div>
-            <div className="w-full h-1.5 sm:h-2 bg-zinc-900 rounded-full border border-white/5 overflow-hidden">
-              <motion.div
-                animate={{ width: `${(player.currentHp / player.maxHp) * 100}%` }}
-                className="h-full bg-gradient-to-r from-green-700 to-green-400"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Hand */}
-        <div className="flex sm:flex-wrap flex-nowrap overflow-x-auto sm:overflow-x-visible justify-start sm:justify-center gap-2 w-full max-w-full px-4 sm:px-0 py-1.5 sm:py-0 pb-3 sm:pb-0 scroll-smooth scrollbar-none select-none mt-1 sm:mt-2 perspective-1000">
-          <AnimatePresence mode="popLayout">
-            {hand.map((card, i) => {
-              const isSelected = !!playerQueue.find((c) => c.id === card.id);
-              return (
-                <motion.div
-                  key={card.id}
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: isSelected ? 0.3 : 1, y: 0, scale: isSelected ? 0.9 : 1 }}
-                  transition={{ delay: i * 0.04 }}
-                  className={clsx('flex-shrink-0', isSelected ? 'pointer-events-none' : '')}
+              {/* Submit / Clear */}
+              <div className="flex gap-3 mt-2">
+                <motion.button
+                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => submitSequence()}
+                  disabled={!canSubmit}
+                  className="flex items-center gap-2 px-8 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all text-sm shadow-lg shadow-emerald-500/20"
                 >
-                  <CardComponent
-                    card={card}
-                    selected={isSelected}
-                    onClick={() => {
-                      if (isSelected) {
-                        deselectCard(card);
-                      } else {
-                        selectCard(card);
-                      }
-                    }}
-                  />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
+                  <Sword className="w-4 h-4" />
+                  Execute
+                </motion.button>
+                <button
+                  onClick={() => clearSequence()}
+                  className="flex items-center gap-2 px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest rounded-xl border border-white/5 transition-all text-sm"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Clear
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* ── Bottom: Player Stats ─────────────────────────────────────────────── */}
+      <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        className="relative z-10 flex flex-col items-center pb-6 pt-2 px-6 gap-2">
+        {/* HP Bar */}
+        <div className="flex items-center gap-4 w-full max-w-md bg-zinc-900/60 border border-white/8 rounded-2xl px-5 py-3 backdrop-blur-sm shadow-lg">
+          <span className="text-xs font-black uppercase tracking-wider text-green-500">HP</span>
+          <div className="flex-1 h-3 bg-zinc-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
+            <motion.div
+              animate={{ width: `${(player.currentHp / player.maxHp) * 100}%` }}
+              className="h-full bg-gradient-to-r from-green-700 to-green-400 rounded-full"
+            />
+          </div>
+          <span className="text-xs text-zinc-300 font-mono font-bold">{player.currentHp}/{player.maxHp}</span>
+          <span className="text-xs font-black uppercase tracking-widest text-violet-400 flex items-center gap-1.5 ml-3">
+            <Zap className="w-4 h-4 text-violet-400" />{player.playerMana} Mana
+          </span>
+        </div>
+      </motion.div>
     </div>
   );
 }

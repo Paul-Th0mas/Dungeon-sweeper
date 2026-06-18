@@ -2,174 +2,173 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Heart, Hammer, Trash2, Wrench, RefreshCw } from 'lucide-react';
-import { restAction, sharpenCard, maintainAllCards, purgeCard } from '@/lib/actions';
-import CardComponent from './Card';
-import { Card } from '@/lib/types';
+import { Flame, Heart, Wand2, Star, ChevronRight } from 'lucide-react';
+import { Spell, CardElement } from '@/lib/types';
 import { useState } from 'react';
+import { clsx } from 'clsx';
 
-type RestMode = 'MAIN' | 'HEAL' | 'SHARPEN' | 'PURGE';
+const EL_COLOR: Record<CardElement, string> = {
+  FIRE: 'text-orange-400', WATER: 'text-sky-400',
+  AIR: 'text-violet-300', EARTH: 'text-amber-500', VOID: 'text-purple-400',
+};
+
+function SpellCard({ spell, onSelect, selected, disabled }: {
+  spell: Spell; onSelect: () => void; selected?: boolean; disabled?: boolean;
+}) {
+  return (
+    <motion.button
+      whileHover={disabled ? {} : { scale: 1.03 }}
+      whileTap={disabled ? {} : { scale: 0.97 }}
+      onClick={disabled ? undefined : onSelect}
+      className={clsx(
+        'flex flex-col gap-2 p-4 rounded-2xl border text-left transition-all w-full',
+        selected ? 'bg-amber-950/40 border-amber-500/60' : 'bg-zinc-900/50 border-white/8',
+        disabled ? 'opacity-40 cursor-not-allowed' : 'hover:border-amber-500/40 cursor-pointer',
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-black text-zinc-100 text-sm">{spell.name}
+          {spell.isUpgraded && <span className="ml-2 text-amber-400 text-xs">★ Upgraded</span>}
+        </span>
+        {spell.isAdvanced && (
+          <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-violet-950/50 border border-violet-500/40 text-violet-300">
+            Advanced
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {spell.recipe.map((el, i) => (
+          <span key={i} className={clsx('text-[11px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700', EL_COLOR[el])}>
+            {el[0]}
+          </span>
+        ))}
+        <span className="text-[10px] text-zinc-500 ml-1">→ {spell.isUpgraded ? Math.floor(spell.baseDamage * 1.25) : spell.baseDamage} dmg</span>
+      </div>
+    </motion.button>
+  );
+}
+
+type RestMode = 'MAIN' | 'UPGRADE';
 
 export default function RestRoomView() {
-  const { player, sessionId } = useGameStore();
+  const { player, sessionId, restHeal, restUpgradeSpell } = useGameStore();
   const [mode, setMode] = useState<RestMode>('MAIN');
+  const [selectedSpell, setSelectedSpell] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   if (!player || !sessionId) return null;
 
-  const applyState = (sessionData: any) => {
-    if (sessionData) {
-      useGameStore.setState({
-        gamePhase: sessionData.phase,
-        player: sessionData.player,
-        grid: sessionData.grid,
-      });
-    }
-  };
+  const ownedSpells = player.spells.filter(s => s.location !== 'SHOP');
+  const upgradableSpells = ownedSpells.filter(s => !s.isUpgraded);
 
   const handleHeal = async () => {
-    applyState(await restAction(sessionId, 'HEAL'));
+    setLoading(true);
+    await restHeal();
+    setLoading(false);
   };
 
-  const handleMaintain = async () => {
-    applyState(await maintainAllCards(sessionId));
+  const handleUpgrade = async () => {
+    if (!selectedSpell) return;
+    setLoading(true);
+    await restUpgradeSpell(selectedSpell);
+    setLoading(false);
   };
-
-  const handleSharpen = async (cardId: string) => {
-    applyState(await sharpenCard(sessionId, cardId));
-  };
-
-  const handlePurge = async (cardId: string) => {
-    applyState(await purgeCard(sessionId, cardId));
-  };
-
-  const allDeckCards = player.deck;
-  const ashCards = allDeckCards.filter((c) => c.isAsh);
-  const usableCards = allDeckCards.filter((c) => !c.isAsh);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="glass w-full max-w-2xl p-8 rounded-3xl border-zinc-800 max-h-[90vh] overflow-y-auto"
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-lg bg-zinc-950 border border-zinc-800/60 rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl"
       >
         {/* Header */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="p-4 bg-orange-500/20 rounded-2xl mb-4">
-            <Flame className="w-10 h-10 text-orange-500 animate-pulse" />
-          </div>
-          <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">Restful Campfire</h2>
-          <p className="text-zinc-500 max-w-md font-medium text-sm">
-            The warmth of the fire eases your soul. Choose <strong className="text-zinc-300">one</strong> action.
-          </p>
-          {ashCards.length > 0 && (
-            <div className="mt-3 px-4 py-2 bg-zinc-800/60 rounded-xl text-xs text-orange-400 font-bold">
-              ⚠ {ashCards.length} card{ashCards.length > 1 ? 's' : ''} turned to Ash — repair or purge them!
-            </div>
-          )}
+          <motion.div animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2.5 }}
+            className="p-4 bg-orange-500/15 rounded-2xl border border-orange-500/20 mb-4">
+            <Flame className="w-10 h-10 text-orange-400 animate-pulse" />
+          </motion.div>
+          <h2 className="text-3xl font-black uppercase tracking-tighter mb-1">Restful Campfire</h2>
+          <p className="text-zinc-500 text-sm">The warmth eases your soul. Choose <strong className="text-zinc-300">one</strong> action.</p>
         </div>
 
         <AnimatePresence mode="wait">
           {mode === 'MAIN' && (
-            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                {/* Heal */}
-                <button
-                  onClick={handleHeal}
-                  className="flex flex-col items-center gap-4 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-red-500/50 hover:bg-red-500/5 transition-all group"
-                >
-                  <div className="p-4 bg-red-500/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <Heart className="w-8 h-8 text-red-500" />
-                  </div>
-                  <div className="text-center">
-                    <span className="block font-black uppercase tracking-tighter text-zinc-100">Rest & Heal</span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">+50% HP</span>
-                  </div>
-                </button>
+            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-2 gap-4">
+              {/* Heal */}
+              <button
+                onClick={handleHeal}
+                disabled={loading}
+                className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-zinc-900/60 border border-white/8 hover:border-red-500/50 hover:bg-red-500/5 transition-all group"
+              >
+                <div className="p-3 bg-red-500/15 rounded-xl group-hover:scale-110 transition-transform">
+                  <Heart className="w-8 h-8 text-red-400" />
+                </div>
+                <div className="text-center">
+                  <span className="block font-black text-zinc-100 uppercase tracking-tight">Rest & Heal</span>
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">+50% HP Restored</span>
+                </div>
+                <div className="text-xs text-green-400 font-bold">
+                  +{Math.floor(player.maxHp * 0.5)} HP
+                </div>
+              </button>
 
-                {/* General Maintenance */}
-                <button
-                  onClick={handleMaintain}
-                  className="flex flex-col items-center gap-4 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group"
-                >
-                  <div className="p-4 bg-emerald-500/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <RefreshCw className="w-8 h-8 text-emerald-500" />
-                  </div>
-                  <div className="text-center">
-                    <span className="block font-black uppercase tracking-tighter text-zinc-100">Maintain All</span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">+2 Uses to Every Card</span>
-                  </div>
-                </button>
-
-                {/* Sharpen one card */}
-                <button
-                  onClick={() => setMode('SHARPEN')}
-                  className="flex flex-col items-center gap-4 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
-                >
-                  <div className="p-4 bg-blue-500/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <Wrench className="w-8 h-8 text-blue-500" />
-                  </div>
-                  <div className="text-center">
-                    <span className="block font-black uppercase tracking-tighter text-zinc-100">Sharpen</span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Fully Restore One Card</span>
-                  </div>
-                </button>
-
-                {/* Purge */}
-                <button
-                  onClick={() => setMode('PURGE')}
-                  className="flex flex-col items-center gap-4 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all group"
-                >
-                  <div className="p-4 bg-yellow-500/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <Trash2 className="w-8 h-8 text-yellow-500" />
-                  </div>
-                  <div className="text-center">
-                    <span className="block font-black uppercase tracking-tighter text-zinc-100">Purge</span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delete a Card Forever</span>
-                  </div>
-                </button>
-              </div>
+              {/* Upgrade Spell */}
+              <button
+                onClick={() => setMode('UPGRADE')}
+                disabled={upgradableSpells.length === 0}
+                className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-zinc-900/60 border border-white/8 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="p-3 bg-amber-500/15 rounded-xl group-hover:scale-110 transition-transform">
+                  <Star className="w-8 h-8 text-amber-400" />
+                </div>
+                <div className="text-center">
+                  <span className="block font-black text-zinc-100 uppercase tracking-tight">Upgrade Spell</span>
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">+25% Spell Damage</span>
+                </div>
+                {upgradableSpells.length === 0 ? (
+                  <div className="text-xs text-zinc-600 font-bold">All spells upgraded</div>
+                ) : (
+                  <div className="text-xs text-amber-400 font-bold">{upgradableSpells.length} eligible</div>
+                )}
+              </button>
             </motion.div>
           )}
 
-          {(mode === 'SHARPEN' || mode === 'PURGE') && (
-            <motion.div key={mode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-zinc-100">
-                  {mode === 'SHARPEN'
-                    ? '🔧 Select a card to fully restore:'
-                    : '🗑 Select a card to permanently destroy:'}
+          {mode === 'UPGRADE' && (
+            <motion.div key="upgrade" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-black text-zinc-200 flex items-center gap-2">
+                  <Wand2 className="w-4 h-4 text-amber-400" />
+                  Select a Spell to Upgrade
                 </h3>
-                <button onClick={() => setMode('MAIN')} className="text-sm text-zinc-500 hover:text-white">
-                  Cancel
+                <button onClick={() => setMode('MAIN')} className="text-xs text-zinc-500 hover:text-white transition-colors">
+                  ← Back
                 </button>
               </div>
-
-              {mode === 'PURGE' && ashCards.length > 0 && (
-                <p className="text-xs text-orange-400 mb-3">Ash cards shown first — purge them to clean your deck!</p>
-              )}
-
-              <div className="flex flex-wrap gap-3 max-h-[360px] overflow-y-auto p-2">
-                {/* Show Ash cards first for PURGE */}
-                {(mode === 'PURGE' ? [...ashCards, ...usableCards] : allDeckCards).map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => mode === 'SHARPEN' ? handleSharpen(c.id) : handlePurge(c.id)}
-                    className="cursor-pointer hover:scale-105 transition-transform"
-                  >
-                    <CardComponent card={c} selected={false} onClick={() => {}} />
-                  </div>
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                {upgradableSpells.map(spell => (
+                  <SpellCard
+                    key={spell.id}
+                    spell={spell}
+                    onSelect={() => setSelectedSpell(spell.id)}
+                    selected={selectedSpell === spell.id}
+                  />
                 ))}
               </div>
+              <button
+                onClick={handleUpgrade}
+                disabled={!selectedSpell || loading}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Star className="w-4 h-4" />
+                Upgrade Selected Spell
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="flex justify-center mt-6">
-          <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-[0.3em]">
-            Choose wisely — rest rooms can only be used once
-          </p>
-        </div>
+        <p className="text-center text-zinc-700 text-[10px] font-bold uppercase tracking-widest mt-8">
+          Rest rooms can only be used once
+        </p>
       </motion.div>
     </div>
   );

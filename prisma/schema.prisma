@@ -19,6 +19,7 @@ enum GamePhase {
   LEVELUP
   START_SCREEN
   FLOOR_END
+  SPELL_REWARD
 }
 
 enum TileType {
@@ -33,7 +34,6 @@ enum TileType {
   EVENT
 }
 
-// Elemental cards replacing traditional suits
 enum CardElement {
   FIRE
   WATER
@@ -74,35 +74,51 @@ model GameSession {
   passives     String[]    @default([]) // acquired passive abilities
   hasKey       Boolean     @default(false)
   torchRadius  Int         @default(2)
-  baseHandSize Int         @default(8)
+
+  // Mana System (queue capacity)
+  playerMana Int @default(4) // starts at 4, upgrades to 6 or 8
+
+  // Spare Elements inventory (JSON: { "FIRE": 2, "WATER": 1, "AIR": 0, "EARTH": 3 })
+  spareElements Json @default("{\"FIRE\":0,\"WATER\":0,\"AIR\":0,\"EARTH\":0}")
 
   // Player Position
   posX Int @default(0) // axial q
   posY Int @default(0) // axial r
 
   // Relations
-  tiles Tile[]
-  deck  Card[]
+  tiles  Tile[]
+  spells Spell[]
 
-  inventory             String[]   @default([])
-  shopRerolled          Boolean    @default(false)
+  inventory    String[]   @default([])
+  shopRerolled Boolean    @default(false)
 
   // Combat State (populated when phase == COMBAT)
-  enemyName             String?
-  enemyMaxHp            Int?       // Base integrity for enemies (used as their Vigor equivalent if we simplify, but let's keep it maxHp/currentHp for them or rename to vigor)
-  enemyCurrentHp        Int?       // They don't have separate Vigor/Health, their HP acts as Vigor
-  enemyAttackDamage     Int?
-  enemyStatusEffects    Json?      // StatusEffect[] — BURN, FREEZE, CHAIN, PUSH
-  playerQueue           String[]   @default([]) // Queue of played card IDs
-  enemyQueue            String[]   @default([]) // Queue of enemy intents (Element strings)
-  enemyQueueRevealed    Boolean    @default(true) // Hidden if PUSH status is active
-  queueSlots            Int        @default(4)    // Slots available to player this turn
-  combatMultiplierBonus Float      @default(1.0)  // Stacks from AIR chains
-  maxVigor              Int        @default(100)
-  currentVigor          Int        @default(100)
+  enemyName          String?
+  enemyTier          Int?       // 1, 2, or 3
+  enemyMana          Int?       // enemy queue length (immutable per enemy type)
+  enemyMaxHp         Int?
+  enemyCurrentHp     Int?
+  enemyAttackDamage  Int?
+  enemyStatusEffects Json?      // StatusEffect[] — BURN, FREEZE
+  enemySpellbook     Json?      // Array of { name, recipe, baseDamage } visible to player
+  enemyElementBias   Json?      // { FIRE: 0.75, EARTH: 0.25 } etc.
+  playerQueue        String[]   @default([]) // Sequence of CardElement strings e.g. ["FIRE","FIRE","AIR"]
+  enemyQueue         String[]   @default([]) // Enemy hidden element sequence
+  enemyQueueRevealed Boolean    @default(false) // Always false until post-clash reveal
+  isEliteOrBoss      Boolean    @default(false) // Triggers omniscient counter AI
 
-  // Pending level-up choices (populated when XP threshold crossed)
-  pendingLevelUpChoices Json? // LevelUpChoice[]
+  // Focus and Omen states
+  focusPips            Int        @default(0)
+  focusAbilityUsed     Boolean    @default(false)
+  activeOmen           String?
+  lastTurnSpells       String[]   @default([])
+  voidElementsNextTurn Int        @default(0)
+  revealQueueTurns     Int        @default(0)
+  staleTurns           Int        @default(0)
+
+
+  // Pending level-up choices / rewards
+  pendingLevelUpChoices Json?   // LevelUpChoice[] or SpellRewardChoice[]
 
   // Saved grid when entering sub-rooms (e.g. TREASURE)
   savedGrid Json?
@@ -122,29 +138,30 @@ model Tile {
   revealed     Boolean  @default(false)
   dangerNumber Int      @default(0)
   hasItem      Boolean  @default(false)
+  cleared      Boolean  @default(false)
 
   @@unique([sessionId, q, r])
 }
 
-model Card {
+// Spells replace Cards. A Spell has a recipe (ordered element array),
+// base damage, and a tier (Basic or Advanced). Equipped spells contribute
+// their recipe elements to the player's combat pool each turn.
+model Spell {
   id        String      @id @default(cuid())
   sessionId String
   session   GameSession @relation(fields: [sessionId], references: [id])
 
-  element         CardElement
-  rank            Int
-  isUpgraded      Boolean      @default(false)
-  isAsh           Boolean      @default(false)   // true when currentUses hits 0
-  isExhaust       Boolean      @default(false)   // if true, card is removed after one use
-  currentUses     Int          @default(3)        // remaining uses before becoming Ash
-  maxUses         Int          @default(3)        // maximum uses (restored at Rest)
-  specialModifier Json? // e.g. { "piercing": true }
-  location        CardLocation @default(DECK)
+  name        String
+  recipe      Json     // CardElement[] e.g. ["FIRE","FIRE","AIR"]
+  baseDamage  Int
+  isAdvanced  Boolean  @default(false)
+  isUpgraded  Boolean  @default(false)
+  equipped    Boolean  @default(false) // true = in active loadout
+  location    SpellLocation @default(LIBRARY)
 }
 
-enum CardLocation {
-  DECK
-  HAND
-  DISCARD
-  SHOP
+enum SpellLocation {
+  LIBRARY // owned but not necessarily equipped
+  LOADOUT // actively equipped (contributes to pool)
+  SHOP    // for sale
 }

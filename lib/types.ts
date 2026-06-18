@@ -8,6 +8,7 @@ export interface Tile {
   revealed: boolean;
   dangerNumber: number;
   hasItem?: boolean;
+  cleared: boolean;
 }
 
 export type GamePhase =
@@ -22,95 +23,144 @@ export type GamePhase =
   | 'TREASURE'
   | 'LEVELUP'
   | 'START_SCREEN'
-  | 'FLOOR_END';
+  | 'FLOOR_END'
+  | 'SPELL_REWARD';
 
-// Elemental system replacing traditional suits
+// ── Elements ────────────────────────────────────────────────────────────────
 export type CardElement = 'FIRE' | 'WATER' | 'AIR' | 'EARTH' | 'VOID';
-// Rank 0 = Ash (broken card), 2–14 = normal play ranks
-export type CardRank = number;
 
-export interface Card {
+// ── Spells ──────────────────────────────────────────────────────────────────
+// A Spell has an ordered recipe of elements. When all recipe elements appear
+// in-order as a contiguous subsequence in the player's submitted sequence,
+// the spell triggers, dealing baseDamage to the enemy.
+export interface Spell {
   id: string;
-  element: CardElement;
-  rank: CardRank;
-  isUpgraded?: boolean;
-  isAsh?: boolean;           // true when all uses are spent — clogs the hand
-  isExhaust?: boolean;       // if true, removed from deck after one use
-  currentUses?: number;      // remaining uses before breaking
-  maxUses?: number;          // max uses (repaired at Rest Room)
-  specialModifier?: Record<string, unknown>;
-  location?: string;
+  name: string;
+  recipe: CardElement[];   // e.g. ['FIRE', 'FIRE', 'AIR']
+  baseDamage: number;
+  statusEffect?: SpellStatusEffect; // optional on-trigger status
+  isAdvanced: boolean;
+  isUpgraded: boolean;     // upgrade at Rest Room: +25% baseDamage
+  equipped: boolean;       // true = in active 4-slot loadout
+  location: 'LIBRARY' | 'LOADOUT' | 'SHOP';
 }
 
-// ── Status Effects ──────────────────────────────────────────────────────────
+// ── Spell Rewards ────────────────────────────────────────────────────────────
+export interface SpellRewardChoice {
+  name: string;
+  recipe: CardElement[];
+  baseDamage: number;
+  isAdvanced: boolean;
+}
+
+// ── Status Effects ───────────────────────────────────────────────────────────
 export interface StatusEffect {
   type: 'BURN' | 'FREEZE' | 'CHAIN' | 'PUSH';
-  value: number;         // damage per tick for BURN; turns skipped for FREEZE; bonus multiplier for CHAIN
+  value: number;
   turnsRemaining: number;
   label: string;
 }
 
-export interface FrameData {
-  playerCard: Card | null;
-  enemyElement: CardElement | null;
-  result: 'WIN' | 'LOSE' | 'TIE' | 'NEUTRAL' | 'NONE';
-  damageToEnemy: number;
-  damageToPlayer: number;
-  enemyHpAfter: number;
+// Spell-applied status effects (simplified — triggered on spell hit)
+export interface SpellStatusEffect {
+  type: 'BURN' | 'FREEZE' | 'CHAIN' | 'PUSH';
+  value: number;
+  turns: number;
 }
 
+// ── Spare Elements ───────────────────────────────────────────────────────────
+// Player's consumable element inventory earned by defeating enemies.
+export type SpareElements = {
+  FIRE: number;
+  WATER: number;
+  AIR: number;
+  EARTH: number;
+};
+
+// ── Enemy Spellbook Entry (visible to player) ─────────────────────────────────
+export interface EnemySpell {
+  name: string;
+  recipe: CardElement[];
+  baseDamage: number;
+}
+
+// ── Enemy ─────────────────────────────────────────────────────────────────────
+export type EnemyTier = 1 | 2 | 3;
+
+export interface Enemy {
+  id: string;
+  name: string;
+  tier: EnemyTier;
+  maxHp: number;
+  currentHp: number;
+  attackDamage: number;  // damage per uncountered slot
+  mana: number;          // enemy queue length (immutable)
+  isEliteOrBoss: boolean;
+  spellbook: EnemySpell[];           // fully visible to player
+  elementBias: Partial<Record<CardElement, number>>;
+  rewardElements: CardElement[];     // spare element drops on defeat
+  rewardRarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  statusEffects: StatusEffect[];
+}
+
+// ── Clash Result ─────────────────────────────────────────────────────────────
 export interface TriggeredSpell {
   name: string;
   damage: number;
   enemyHpAfter: number;
+  startIndex: number;   // index in player sequence where recipe matched
+  isCombo?: boolean;
+  comboCount?: number;
+  recipeLength?: number;
+}
+
+export interface SlotResult {
+  playerElement: CardElement | null;
+  enemyElement: CardElement | null;
+  result: 'COUNTER' | 'COUNTERED' | 'NEUTRAL' | 'EMPTY';
+  damageToPlayer: number;
 }
 
 export interface ClashResult {
-  frames: FrameData[];
-  spellsTriggered: TriggeredSpell[];
-  totalEnemyDamage: number;
-  totalPlayerDamage: number;
+  slots: SlotResult[];
+  triggeredSpells: TriggeredSpell[];
+  totalEnemyDamage: number;     // damage dealt to enemy from spells
+  totalPlayerDamage: number;    // damage dealt to player from uncountered slots
+  enemyDamageNegated: boolean;  // true if 40% counter threshold was met
+  counterPercent: number;       // percentage of slots the player countered
   newStatusEffects: StatusEffect[];
   description: string;
   enemyHpAtStart: number;
+  focusAbilityUsed?: boolean;
+  playerClass?: PlayerClass;
+  basicStrikeDamage: number;    // raw damage from unmatched (non-spell) elements
+  staleTurns: number;           // consecutive turns with 0 enemy damage (for escalation display)
 }
 
-// ── Enemy ────────────────────────────────────────────────────────────────────
-export interface Enemy {
-  id: string;
-  name: string;
-  maxHp: number;
-  currentHp: number;
-  attackDamage: number;
-  rewardRarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
-  statusEffects: StatusEffect[];
-  elementBias?: Partial<Record<CardElement, number>>;
-}
-
-// ── Player & Classes ─────────────────────────────────────────────────────────
+// ── Player & Classes ──────────────────────────────────────────────────────────
 export type PlayerClass = 'BERSERKER' | 'PALADIN' | 'WIZARD' | 'OVERSEER';
 
 export type PassiveAbility =
   // Berserker
   | 'RAGE_BONUS'        // FIRE spells +25% dmg
   | 'BLOODLUST'         // Heal 5 HP on kill
-  | 'TITANS_GRIP'       // Hand size +1
+  | 'TITANS_GRIP'       // Start combat with 1 free FIRE Spare Element
   | 'IRON_SKIN'         // Max HP +20
-  | 'BATTLE_FURY'       // +1 hand per combat
+  | 'BATTLE_FURY'       // Once per combat: re-roll element pool
   // Paladin
-  | 'DIVINE_SHIELD'     // Block first 10 dmg per combat
-  | 'HOLY_SMITE'        // Freeze lasts +1 turn
+  | 'DIVINE_SHIELD'     // First uncountered enemy slot is negated each round
+  | 'HOLY_SMITE'        // FREEZE lasts +1 turn
   | 'BLESSING'          // Heal 10% max HP at floor start
-  | 'SACRED_GROUND'     // WATER cards heal 3 HP each
+  | 'SACRED_GROUND'     // Start combat with 1 free WATER Spare Element
   // Wizard
-  | 'ARCANE_MASTERY'    // AIR multipliers ×1.5
-  | 'OVERLOAD'          // +1 hand per combat
-  | 'MANA_SURGE'        // Every 3rd hand: double dmg
-  | 'LEYLINE'           // Draw 1 extra at combat start
+  | 'ARCANE_MASTERY'    // AIR spell damage ×1.5
+  | 'OVERLOAD'          // Once per combat: re-roll element pool
+  | 'MANA_SURGE'        // Every 3rd turn: +1 temporary mana slot
+  | 'LEYLINE'           // Start combat with 1 free AIR Spare Element
   // Overseer
-  | 'SHADOW_STEP'       // 20% chance to dodge enemy attack
-  | 'EXPLOIT_WEAKNESS'  // EARTH draw also grants +5g
-  | 'TACTICAL_INSIGHT'  // +1 discard per combat
+  | 'SHADOW_STEP'       // 20% chance to dodge all enemy damage per round
+  | 'EXPLOIT_WEAKNESS'  // EARTH counter reveals 1 extra enemy slot
+  | 'TACTICAL_INSIGHT'  // Once per combat: re-roll element pool
   | 'CALCULATED_RISK';  // Win at <50% HP → double gold
 
 export interface LevelUpChoice {
@@ -127,7 +177,8 @@ export interface Player {
   class: PlayerClass;
   relics: string[];
   passives: string[];
-  deck: Card[];
+  spells: Spell[];       // all owned spells (equipped + library)
+  spareElements: SpareElements;
   inventory: unknown[];
   position: AxialCoord;
   torchRadius: number;
@@ -136,17 +187,28 @@ export interface Player {
   xp: number;
   level: number;
   xpToNextLevel: number;
-  baseHandSize: number;
+  playerMana: number;    // current queue capacity (4–8)
 }
 
+// ── Combat State ──────────────────────────────────────────────────────────────
 export interface CombatState {
   enemy: Enemy | null;
-  hand: Card[];
-  playerQueue: Card[];
+  // The player's active element pool for this turn:
+  // base pool (from equipped spells) + any injected Spare Elements
+  activePool: CardElement[];
+  // Spare elements still in inventory (not yet injected)
+  spareElements: SpareElements;
+  // Player's current sequence (elements moved from pool to board slots)
+  playerSequence: (CardElement | null)[];
+  // Enemy's hidden queue (unknown until post-clash reveal)
   enemyQueue: CardElement[];
-  enemyQueueRevealed: boolean;
-  queueSlots: number;
-  maxVigor: number;
-  currentVigor: number;
+  // Board length = player's mana
+  boardLength: number;
   lastClash: ClashResult | null;
+  // Whether the player has used their pool re-roll charge this combat
+  rerollUsed: boolean;
+  focusPips: number;
+  focusAbilityUsed: boolean;
+  activeOmen: string | null;
+  enemyQueueRevealed: boolean;
 }

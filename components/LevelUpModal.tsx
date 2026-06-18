@@ -55,7 +55,7 @@ export default function LevelUpModal() {
 
         {/* Choices */}
         <div className="grid grid-cols-1 gap-4">
-          {pendingLevelUpChoices.map((choice: LevelUpChoice, i) => (
+          {pendingLevelUpChoices.map((choice: LevelUpChoice, i: number) => (
             <motion.button
               key={choice.passive}
               initial={{ opacity: 0, x: -30 }}

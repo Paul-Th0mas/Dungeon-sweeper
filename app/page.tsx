@@ -24,7 +24,7 @@ export default function Home() {
       {gamePhase === 'DASHBOARD'    && <DashboardView />}
       {gamePhase === 'START_SCREEN' && <StartScreenView />}
       {gamePhase === 'EXPLORING' && <ExplorationView />}
-      {gamePhase === 'COMBAT'    && <CombatView />}
+      {(gamePhase === 'COMBAT' || gamePhase === 'SPELL_REWARD') && <CombatView />}
       {gamePhase === 'GAMEOVER'  && <GameOverView />}
       {gamePhase === 'WIN'       && <WinView />}
       {gamePhase === 'SHOP'      && <ShopView />}

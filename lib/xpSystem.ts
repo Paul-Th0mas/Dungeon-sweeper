@@ -59,32 +59,32 @@ export function getEnemyRewards(
 // ── Level-up choice pools per class ──────────────────────────────────────────
 const POOLS: Record<PlayerClass, LevelUpChoice[]> = {
   BERSERKER: [
-    { passive: 'RAGE_BONUS',   name: 'Berserker Rage',  description: 'FIRE spells deal +25% damage.',           icon: '🔥' },
-    { passive: 'BLOODLUST',    name: 'Bloodlust',        description: 'Heal 5 HP every time you kill an enemy.', icon: '🩸' },
-    { passive: 'TITANS_GRIP',  name: "Titan's Grip",     description: 'Combat hand size +1 card.',               icon: '✊' },
-    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                             icon: '🛡️' },
-    { passive: 'BATTLE_FURY',  name: 'Battle Fury',       description: '+1 hand attempt per combat.',             icon: '⚔️' },
+    { passive: 'RAGE_BONUS',   name: 'Berserker Rage',  description: 'FIRE spells deal +25% damage.',                              icon: '🔥' },
+    { passive: 'BLOODLUST',    name: 'Bloodlust',        description: 'Heal 5 HP every time you kill an enemy.',                    icon: '🩸' },
+    { passive: 'TITANS_GRIP',  name: "Titan's Grip",     description: 'Start each combat with 1 free FIRE Spare Element.',           icon: '✊' },
+    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                                                icon: '🛡️' },
+    { passive: 'BATTLE_FURY',  name: 'Battle Fury',       description: 'Once per combat: re-roll your element pool (pass turn).',    icon: '⚔️' },
   ],
   PALADIN: [
-    { passive: 'DIVINE_SHIELD', name: 'Divine Shield',  description: 'Block the first 10 damage each combat.',  icon: '✨' },
-    { passive: 'HOLY_SMITE',   name: 'Holy Smite',      description: 'WATER Freeze effects last +1 extra turn.',  icon: '❄️' },
-    { passive: 'BLESSING',     name: 'Blessing',         description: 'Heal 10% max HP when entering a new floor.', icon: '💚' },
-    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                             icon: '🛡️' },
-    { passive: 'SACRED_GROUND', name: 'Sacred Ground',  description: 'Each WATER card played heals you for 3 HP.', icon: '🌊' },
+    { passive: 'DIVINE_SHIELD', name: 'Divine Shield',  description: 'Negate damage from the first uncountered enemy slot each round.', icon: '✨' },
+    { passive: 'HOLY_SMITE',   name: 'Holy Smite',      description: 'FREEZE effects applied to enemies last +1 extra turn.',          icon: '❄️' },
+    { passive: 'BLESSING',     name: 'Blessing',         description: 'Heal 10% max HP when entering a new floor.',                    icon: '💚' },
+    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                                                   icon: '🛡️' },
+    { passive: 'SACRED_GROUND', name: 'Sacred Ground',  description: 'Start each combat with 1 free WATER Spare Element.',            icon: '🌊' },
   ],
   WIZARD: [
-    { passive: 'ARCANE_MASTERY', name: 'Arcane Mastery', description: 'AIR multipliers stack ×1.5.',    icon: '⚡' },
-    { passive: 'OVERLOAD',     name: 'Overload',          description: '+1 hand attempt per combat.',             icon: '💥' },
-    { passive: 'MANA_SURGE',   name: 'Mana Surge',        description: 'Every 3rd hand played deals double damage.', icon: '🌀' },
-    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                             icon: '🛡️' },
-    { passive: 'LEYLINE',      name: 'Leyline',           description: 'Draw 1 extra card at the start of combat.', icon: '🔮' },
+    { passive: 'ARCANE_MASTERY', name: 'Arcane Mastery', description: 'AIR spell damage ×1.5.',                                   icon: '⚡' },
+    { passive: 'OVERLOAD',     name: 'Overload',          description: 'Once per combat: re-roll your element pool.',                icon: '💥' },
+    { passive: 'MANA_SURGE',   name: 'Mana Surge',        description: 'Every 3rd combat turn: gain +1 temporary mana slot.',       icon: '🌀' },
+    { passive: 'IRON_SKIN',    name: 'Iron Skin',         description: 'Max HP +20.',                                               icon: '🛡️' },
+    { passive: 'LEYLINE',      name: 'Leyline',           description: 'Start each combat with 1 free AIR Spare Element.',          icon: '🔮' },
   ],
   OVERSEER: [
-    { passive: 'SHADOW_STEP',     name: 'Shadow Step',      description: '20% chance to dodge enemy attack.',    icon: '👁️' },
-    { passive: 'EXPLOIT_WEAKNESS', name: 'Exploit Weakness', description: 'EARTH draws also grant +5 gold.',       icon: '💨' },
-    { passive: 'TACTICAL_INSIGHT', name: 'Tactical Insight', description: '+1 discard per combat.',               icon: '🧠' },
-    { passive: 'IRON_SKIN',       name: 'Iron Skin',         description: 'Max HP +20.',                          icon: '🛡️' },
-    { passive: 'CALCULATED_RISK', name: 'Calculated Risk',   description: 'Win at <50% HP → earn double gold.',   icon: '🎲' },
+    { passive: 'SHADOW_STEP',     name: 'Shadow Step',       description: '20% chance to dodge all enemy damage for a round.',         icon: '👁️' },
+    { passive: 'EXPLOIT_WEAKNESS', name: 'Exploit Weakness',  description: 'EARTH counter-slots reveal 1 extra hidden enemy element.',   icon: '💨' },
+    { passive: 'TACTICAL_INSIGHT', name: 'Tactical Insight',  description: 'Once per combat: re-roll your element pool.',               icon: '🧠' },
+    { passive: 'IRON_SKIN',       name: 'Iron Skin',          description: 'Max HP +20.',                                              icon: '🛡️' },
+    { passive: 'CALCULATED_RISK', name: 'Calculated Risk',    description: 'Win a combat at <50% HP → earn double gold.',             icon: '🎲' },
   ],
 };
 
@@ -106,13 +106,7 @@ export function pickLevelUpChoices(
 /** Apply stat changes when a passive is chosen. Returns delta to apply. */
 export function applyPassiveStat(
   passive: PassiveAbility
-): { maxHpDelta: number; handSizeDelta: number; handsDelta: number; discardsDelta: number } {
-  const none = { maxHpDelta: 0, handSizeDelta: 0, handsDelta: 0, discardsDelta: 0 };
-  if (passive === 'IRON_SKIN')       return { ...none, maxHpDelta: 20 };
-  if (passive === 'TITANS_GRIP')     return { ...none, handSizeDelta: 1 };
-  if (passive === 'LEYLINE')         return { ...none, handSizeDelta: 1 };
-  if (passive === 'BATTLE_FURY')     return { ...none, handsDelta: 1 };
-  if (passive === 'OVERLOAD')        return { ...none, handsDelta: 1 };
-  if (passive === 'TACTICAL_INSIGHT') return { ...none, discardsDelta: 1 };
-  return none;
+): { maxHpDelta: number } {
+  if (passive === 'IRON_SKIN') return { maxHpDelta: 20 };
+  return { maxHpDelta: 0 };
 }
