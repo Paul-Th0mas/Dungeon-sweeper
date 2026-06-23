@@ -1,4 +1,4 @@
-import { AxialCoord } from './types';
+import { AxialCoord } from '../types';
 
 export const DIRECTIONS: AxialCoord[] = [
   { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },

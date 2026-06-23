@@ -8,7 +8,7 @@ import {
   Spell,
   SpellStatusEffect,
   EnemySpell,
-} from './types';
+} from '../types';
 
 // ── Elemental Counter Wheel ────────────────────────────────────────────────────
 // Key hard-counters Value (key beats value).

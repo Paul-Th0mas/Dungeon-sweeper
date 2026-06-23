@@ -12,8 +12,8 @@ import {
   Spell,
   SpareElements,
   Biome,
-} from '../lib/types';
-import { coordToString } from '../lib/hexMath';
+} from '@/lib/types';
+import { coordToString } from '@/lib/utils/hexMath';
 import {
   initializeGame as serverInitialize,
   movePlayer as serverMovePlayer,
@@ -36,13 +36,13 @@ import {
   restUpgradeSpell as serverRestUpgradeSpell,
   unleashUltimate as serverUnleashUltimate,
   cheatFocus as serverCheatFocus,
-} from '../lib/actions';
+} from '@/lib/actions/actions';
 import {
   purchaseShopSpell as serverPurchaseShopSpell,
   purchaseSpareElements as serverPurchaseSpareElements,
   sellLibrarySpell as serverSellLibrarySpell,
   exitShop as serverExitShop,
-} from '../lib/shopActions';
+} from '@/lib/actions/shopActions';
 
 interface GameStore {
   sessionId: string | null;

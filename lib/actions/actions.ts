@@ -1,6 +1,6 @@
 'use server';
 
-import prisma from './prisma';
+import prisma from '../database/prisma';
 import {
   generateGrid,
   generateTreasureGrid,
@@ -9,7 +9,7 @@ import {
   buildEnemyFromTemplate,
   generateSpellRewardChoices,
   getBiomeBoss,
-} from './gameLogic';
+} from '../gameLogic';
 import {
   resolveClash,
   generateEnemyQueue,
@@ -17,8 +17,8 @@ import {
   tickStatusEffects,
   mergeStatusEffects,
   isFrozen,
-} from './combatEngine';
-import { calculateLevelUp, getEnemyRewards, getXPToNextLevel, pickLevelUpChoices, applyPassiveStat } from './xpSystem';
+} from '../engine/combatEngine';
+import { calculateLevelUp, getEnemyRewards, getXPToNextLevel, pickLevelUpChoices, applyPassiveStat } from '../engine/xpSystem';
 import {
   AxialCoord,
   Tile as ClientTile,
@@ -31,8 +31,8 @@ import {
   Spell,
   SpareElements,
   Biome,
-} from './types';
-import { coordToString, getDistance, getNeighbors } from './hexMath';
+} from '../types';
+import { coordToString, getDistance, getNeighbors } from '../utils/hexMath';
 import { shuffle } from 'lodash';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

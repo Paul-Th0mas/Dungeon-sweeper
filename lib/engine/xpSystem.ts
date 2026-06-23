@@ -1,4 +1,4 @@
-import { PlayerClass, LevelUpChoice, PassiveAbility } from './types';
+import { PlayerClass, LevelUpChoice, PassiveAbility } from '../types';
 
 // ── XP Thresholds ─────────────────────────────────────────────────────────────
 // Index = target level. XP_THRESHOLDS[2] = XP needed to reach level 2.

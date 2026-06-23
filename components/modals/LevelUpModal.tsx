@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, Zap } from 'lucide-react';
-import { chooseLevelUpPassive } from '@/lib/actions';
+import { chooseLevelUpPassive } from '@/lib/actions/actions';
 import { PassiveAbility, LevelUpChoice } from '@/lib/types';
 
 const ELEMENT_COLORS: Record<string, string> = {

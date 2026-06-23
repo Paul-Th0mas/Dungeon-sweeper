@@ -1,8 +1,8 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { axialToPixel, coordToString } from '@/lib/hexMath';
-import HexTile from './HexTile';
+import { axialToPixel, coordToString } from '@/lib/utils/hexMath';
+import HexTile from '@/components/ui/HexTile';
 import { motion } from 'framer-motion';
 import { Heart, Compass, Trophy, Zap, Star, Shield, Package, FlaskConical } from 'lucide-react';
 

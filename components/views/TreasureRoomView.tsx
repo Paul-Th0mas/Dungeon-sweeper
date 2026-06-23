@@ -3,8 +3,8 @@
 import { useGameStore } from '@/store/useGameStore';
 import { motion } from 'framer-motion';
 import { Gem, X, Bomb, ChevronRight } from 'lucide-react';
-import { clickTreasureTile, exitTreasureRoom } from '@/lib/actions';
-import { axialToPixel, coordToString } from '@/lib/hexMath';
+import { clickTreasureTile, exitTreasureRoom } from '@/lib/actions/actions';
+import { axialToPixel, coordToString } from '@/lib/utils/hexMath';
 import { clsx } from 'clsx';
 
 export default function TreasureRoomView() {

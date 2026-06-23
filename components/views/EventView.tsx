@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { motion } from 'framer-motion';
 import { Sparkles, MessageSquare, Scroll, Wand2 } from 'lucide-react';
-import { handleEvent } from '@/lib/actions';
+import { handleEvent } from '@/lib/actions/actions';
 
 export default function EventView() {
   const { player, sessionId } = useGameStore();

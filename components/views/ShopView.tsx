@@ -6,7 +6,7 @@ import { ShoppingBag, Flame, Droplets, Wind, Mountain, Zap, ArrowRight, Tag, Pac
 import { Spell, CardElement } from '@/lib/types';
 import { useState } from 'react';
 import { clsx } from 'clsx';
-import SpellSwapModal from './SpellSwapModal';
+import SpellSwapModal from '@/components/modals/SpellSwapModal';
 
 const EL: Record<CardElement, { color: string; bg: string; border: string; icon: React.ElementType; label: string }> = {
   FIRE:  { color: 'text-orange-400', bg: 'bg-orange-950/60', border: 'border-orange-500/50', icon: Flame,    label: 'Fire'  },

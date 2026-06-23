@@ -2,7 +2,7 @@
 
 import { Tile, PlayerClass, TileType } from '@/lib/types';
 import { useGameStore } from '@/store/useGameStore';
-import { getDistance, coordToString } from '@/lib/hexMath';
+import { getDistance, coordToString } from '@/lib/utils/hexMath';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skull, ShoppingCart, Flame, Trophy, HelpCircle, Key, DoorOpen, Lock, ShieldAlert } from 'lucide-react';

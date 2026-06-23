@@ -2,18 +2,18 @@
 
 import { useEffect } from 'react';
 import { useGameStore } from '@/store/useGameStore';
-import ExplorationView from '@/components/ExplorationView';
-import CombatView from '@/components/CombatView';
-import GameOverView from '@/components/GameOverView';
-import WinView from '@/components/WinView';
-import ShopView from '@/components/ShopView';
-import RestRoomView from '@/components/RestRoomView';
-import EventView from '@/components/EventView';
-import LevelUpModal from '@/components/LevelUpModal';
-import StartScreenView from '@/components/StartScreenView';
-import FloorEndModal from '@/components/FloorEndModal';
-import TreasureRoomView from '@/components/TreasureRoomView';
-import DashboardView from '@/components/DashboardView';
+import ExplorationView from '@/components/views/ExplorationView';
+import CombatView from '@/components/views/CombatView';
+import GameOverView from '@/components/views/GameOverView';
+import WinView from '@/components/views/WinView';
+import ShopView from '@/components/views/ShopView';
+import RestRoomView from '@/components/views/RestRoomView';
+import EventView from '@/components/views/EventView';
+import LevelUpModal from '@/components/modals/LevelUpModal';
+import StartScreenView from '@/components/views/StartScreenView';
+import FloorEndModal from '@/components/modals/FloorEndModal';
+import TreasureRoomView from '@/components/views/TreasureRoomView';
+import DashboardView from '@/components/views/DashboardView';
 
 export default function Home() {
   const { gamePhase } = useGameStore();

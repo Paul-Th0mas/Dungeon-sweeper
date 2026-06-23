@@ -6,7 +6,7 @@ import {
   sellLibrarySpell as _sellLibrarySpell,
   exitShop as _exitShop,
 } from './actions';
-import { CardElement } from './types';
+import { CardElement } from '../types';
 
 export async function purchaseShopSpell(sessionId: string, spellId: string) {
   return _purchaseShopSpell(sessionId, spellId);

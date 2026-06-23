@@ -10,8 +10,8 @@ import {
 import { clsx } from 'clsx';
 import { CardElement, Spell, ClashResult, EnemySpell, PlayerClass } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import Card from './Card';
-import SpellSwapModal from './SpellSwapModal';
+import Card from '@/components/ui/Card';
+import SpellSwapModal from '@/components/modals/SpellSwapModal';
 
 // ── Element Styles ─────────────────────────────────────────────────────────────
 const EL: Record<CardElement, { color: string; bg: string; border: string; glow: string; icon: React.ElementType; label: string }> = {

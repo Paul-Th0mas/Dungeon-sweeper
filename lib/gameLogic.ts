@@ -1,5 +1,5 @@
 import { AxialCoord, Tile, TileType, CardElement, PlayerClass, EnemyTier, EnemySpell, SpareElements, Biome } from './types';
-import { getNeighbors, coordToString } from './hexMath';
+import { getNeighbors, coordToString } from './utils/hexMath';
 import { shuffle } from 'lodash';
 
 // ── Spell Definitions ─────────────────────────────────────────────────────────
