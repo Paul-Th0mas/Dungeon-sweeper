@@ -16,7 +16,7 @@ const EL: Record<CardElement, { color: string; bg: string; border: string; icon:
   FIRE:  { color: 'text-orange-400', bg: 'bg-orange-950/60', border: 'border-orange-500/50', icon: Flame,    label: 'Fire'  },
   WATER: { color: 'text-sky-400',    bg: 'bg-sky-950/60',    border: 'border-sky-500/50',    icon: Droplets, label: 'Water' },
   AIR:   { color: 'text-violet-300', bg: 'bg-violet-950/60', border: 'border-violet-400/50', icon: Wind,     label: 'Air'   },
-  EARTH: { color: 'text-amber-500',  bg: 'bg-amber-950/60',  border: 'border-amber-600/50',  icon: Mountain, label: 'Earth' },
+  EARTH: { color: 'text-[#5adf82]',  bg: 'bg-emerald-950/60',  border: 'border-emerald-500/50',  icon: Mountain, label: 'Earth' },
   VOID:  { color: 'text-purple-400', bg: 'bg-purple-950/60', border: 'border-purple-500/50', icon: Star,     label: 'Void'  },
 };
 

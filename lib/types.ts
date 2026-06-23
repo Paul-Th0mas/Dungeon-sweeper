@@ -2,6 +2,8 @@ export type AxialCoord = { q: number; r: number };
 
 export type TileType = 'SAFE' | 'ENEMY' | 'KEY' | 'EXIT' | 'WALL' | 'SHOP' | 'REST' | 'TREASURE' | 'EVENT';
 
+export type Biome = 'SIROCCO' | 'SEPULCHER' | 'VOID_SCAUR';
+
 export interface Tile {
   coord: AxialCoord;
   type: TileType;
@@ -9,6 +11,8 @@ export interface Tile {
   dangerNumber: number;
   hasItem?: boolean;
   cleared: boolean;
+  isMirage?: boolean;
+  calcifiedHits?: number;
 }
 
 export type GamePhase =
@@ -211,4 +215,5 @@ export interface CombatState {
   focusAbilityUsed: boolean;
   activeOmen: string | null;
   enemyQueueRevealed: boolean;
+  sandBlindnessActive?: boolean;
 }

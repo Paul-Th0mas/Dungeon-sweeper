@@ -42,13 +42,58 @@
 :root {
   --background: #0d0d15;
   --foreground: #e4e1ed;
+
+  /* Height-based responsive token sizing defaults */
+  --token-size-lg: 4rem;
+  --token-icon-lg: 2rem;
+  --token-size-md: 3rem;
+  --token-icon-md: 1.5rem;
+  --token-size-sm: 2.25rem;
+  --token-icon-sm: 1.125rem;
+}
+
+@media (max-height: 850px) {
+  :root {
+    --token-size-lg: 3.25rem;
+    --token-icon-lg: 1.625rem;
+    --token-size-md: 2.5rem;
+    --token-icon-md: 1.25rem;
+    --token-size-sm: 2rem;
+    --token-icon-sm: 1rem;
+  }
+}
+
+@media (max-height: 720px) {
+  :root {
+    --token-size-lg: 2.75rem;
+    --token-icon-lg: 1.375rem;
+    --token-size-md: 2.25rem;
+    --token-icon-md: 1.125rem;
+    --token-size-sm: 1.75rem;
+    --token-icon-sm: 0.875rem;
+  }
+}
+
+@media (max-height: 600px) {
+  :root {
+    --token-size-lg: 2.25rem;
+    --token-icon-lg: 1.125rem;
+    --token-size-md: 1.875rem;
+    --token-icon-md: 0.9375rem;
+    --token-size-sm: 1.5rem;
+    --token-icon-sm: 0.75rem;
+  }
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: var(--font-space-grotesk), sans-serif;
-  overflow: hidden;
 }
 
 .hex-clip {
@@ -178,6 +223,123 @@ body {
 
 .animate-torch-flicker {
   animation: torch-flicker 0.25s infinite alternate steps(4);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Height-responsive Combat View components */
+.token-scale-lg {
+  width: var(--token-size-lg) !important;
+  height: var(--token-size-lg) !important;
+  font-size: calc(var(--token-size-lg) * 0.35) !important;
+}
+.token-scale-lg svg {
+  width: var(--token-icon-lg) !important;
+  height: var(--token-icon-lg) !important;
+}
+
+.token-scale-md {
+  width: var(--token-size-md) !important;
+  height: var(--token-size-md) !important;
+  font-size: calc(var(--token-size-md) * 0.35) !important;
+}
+.token-scale-md svg {
+  width: var(--token-icon-md) !important;
+  height: var(--token-icon-md) !important;
+}
+
+.token-scale-sm {
+  width: var(--token-size-sm) !important;
+  height: var(--token-size-sm) !important;
+  font-size: calc(var(--token-size-sm) * 0.3) !important;
+}
+.token-scale-sm svg {
+  width: var(--token-icon-sm) !important;
+  height: var(--token-icon-sm) !important;
+}
+
+.spell-card-scale {
+  min-width: 125px;
+}
+@media (max-width: 640px) {
+  .spell-card-scale {
+    min-width: 90px;
+  }
+}
+@media (max-height: 850px) {
+  .spell-card-scale {
+    min-width: 110px !important;
+    padding: 0.5rem !important;
+    gap: 0.25rem !important;
+  }
+  .spell-card-scale .font-bold {
+    font-size: 11px !important;
+  }
+}
+@media (max-height: 720px) {
+  .spell-card-scale {
+    min-width: 95px !important;
+    padding: 0.35rem !important;
+    gap: 0.15rem !important;
+  }
+  .spell-card-scale .font-bold {
+    font-size: 10px !important;
+  }
+}
+@media (max-height: 600px) {
+  .spell-card-scale {
+    min-width: 80px !important;
+    padding: 0.25rem !important;
+    gap: 0.1rem !important;
+  }
+  .spell-card-scale .font-bold {
+    font-size: 9px !important;
+  }
+}
+
+@media (max-height: 800px) {
+  .combat-middle-area {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+  .combat-enemy-section {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.25rem !important;
+    gap: 0.25rem !important;
+  }
+}
+
+@media (max-height: 680px) {
+  .clash-rules-chart {
+    display: none !important;
+  }
+  .combat-middle-area {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+    gap: 0.25rem !important;
+  }
+  .combat-enemy-section {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.1rem !important;
+    gap: 0.15rem !important;
+  }
+}
+
+@media (max-height: 720px) {
+  .combat-dashboard-bar {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+    border-top-width: 1px !important;
+  }
 }
 
 

@@ -75,7 +75,7 @@ export default function RestRoomView() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className="w-full max-w-lg bg-zinc-950 border border-zinc-800/60 rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl"

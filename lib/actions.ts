@@ -8,6 +8,7 @@ import {
   getRandomEnemy,
   buildEnemyFromTemplate,
   generateSpellRewardChoices,
+  getBiomeBoss,
 } from './gameLogic';
 import {
   resolveClash,
@@ -29,6 +30,7 @@ import {
   CardElement,
   Spell,
   SpareElements,
+  Biome,
 } from './types';
 import { coordToString, getDistance, getNeighbors } from './hexMath';
 import { shuffle } from 'lodash';
@@ -65,6 +67,14 @@ function consumeFromSpareElements(base: SpareElements, consumed: CardElement[]):
 }
 
 async function clearTileAndDecrementNeighbors(sessionId: string, q: number, r: number) {
+  // If this tile is already cleared, skip to avoid double-decrementing neighbors
+  const existing = await prisma.tile.findUnique({
+    where: { sessionId_q_r: { sessionId, q, r } },
+    select: { cleared: true },
+  });
+  if (existing?.cleared) {
+    return; // No further action needed
+  }
   await prisma.tile.update({
     where: { sessionId_q_r: { sessionId, q, r } },
     data: { cleared: true, revealed: true },
@@ -82,6 +92,18 @@ async function clearTileAndDecrementNeighbors(sessionId: string, q: number, r: n
       });
     }
   }
+}
+
+function getTrueDangerNumber(tiles: any[], q: number, r: number): number {
+  const neighbors = getNeighbors({ q, r });
+  let count = 0;
+  for (const n of neighbors) {
+    const neighbor = tiles.find((t) => t.q === n.q && t.r === n.r);
+    if (neighbor && neighbor.type !== 'SAFE' && neighbor.type !== 'WALL') {
+      count++;
+    }
+  }
+  return count;
 }
 
 function mapSpellFromDB(s: any): Spell {
@@ -107,6 +129,8 @@ function formatSession(session: any) {
       dangerNumber: t.dangerNumber,
       hasItem: t.hasItem,
       cleared: t.cleared,
+      isMirage: t.isMirage,
+      calcifiedHits: t.calcifiedHits,
     };
   });
 
@@ -170,12 +194,14 @@ function formatSession(session: any) {
           focusAbilityUsed: session.focusAbilityUsed ?? false,
           activeOmen: session.activeOmen ?? null,
           enemyQueueRevealed: session.enemyQueueRevealed ?? false,
+          sandBlindnessActive: session.enemyName === 'Sol-Inured Skimmer, The Dune Weaver' && (session.combatTurn % 3 === 0),
         }
       : null;
 
   return {
     id: session.id,
     phase: session.phase as GamePhase,
+    biome: session.biome as Biome,
     player: {
       maxHp: session.maxHp,
       currentHp: session.currentHp,
@@ -232,7 +258,7 @@ export async function resumeSession(sessionId: string) {
 
 export async function initializeGame(playerClass: PlayerClass = 'BERSERKER') {
   const starterSpells = generateStarterSpells(playerClass);
-  const grid = generateGrid(3);
+  const grid = generateGrid(3, 'SIROCCO', 1);
 
   const HP_BY_CLASS: Record<PlayerClass, number> = {
     BERSERKER: 120,
@@ -246,6 +272,7 @@ export async function initializeGame(playerClass: PlayerClass = 'BERSERKER') {
     data: {
       phase: 'EXPLORING',
       floor: 1,
+      biome: 'SIROCCO',
       playerClass,
       maxHp,
       currentHp: maxHp,
@@ -271,6 +298,8 @@ export async function initializeGame(playerClass: PlayerClass = 'BERSERKER') {
           revealed: tile.revealed,
           dangerNumber: tile.dangerNumber,
           cleared: tile.cleared ?? false,
+          isMirage: tile.isMirage ?? false,
+          calcifiedHits: tile.calcifiedHits ?? 0,
         })),
       },
       spells: {
@@ -309,6 +338,29 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
   );
   if (!targetTile) return null;
 
+  // 1. Calcified Tile Check
+  if (targetTile.calcifiedHits > 0) {
+    const nextHits = targetTile.calcifiedHits - 1;
+    if (nextHits > 0) {
+      // Crack the shell, set revealed to true so the cracked state is visible, but do not move the player
+      await prisma.tile.update({
+        where: { id: targetTile.id },
+        data: { calcifiedHits: nextHits, revealed: true },
+      });
+      const final = await prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        include: { tiles: true, spells: true },
+      });
+      return formatSession(final);
+    } else {
+      // Hits becomes 0, so we update it in the database and continue to move player
+      await prisma.tile.update({
+        where: { id: targetTile.id },
+        data: { calcifiedHits: 0 },
+      });
+    }
+  }
+
   // Reveal + move
   await prisma.gameSession.update({
     where: { id: sessionId },
@@ -319,9 +371,74 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
     },
   });
 
+  // 2. Mirage Fluctuation upon player movement
+  for (const tile of session.tiles) {
+    if (tile.isMirage && tile.revealed) {
+      const trueDanger = getTrueDangerNumber(session.tiles, tile.q, tile.r);
+      const shift = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+      const newDanger = Math.max(0, trueDanger + shift);
+      await prisma.tile.update({
+        where: { id: tile.id },
+        data: { dangerNumber: newDanger },
+      });
+    }
+  }
+
+  // 3. Reality Rifts (Void-Scaur)
+  if ((targetTile.type === 'EVENT' || targetTile.type === 'TREASURE') && !targetTile.cleared && session.biome === 'VOID_SCAUR') {
+    const unrevealedSafeTiles = session.tiles.filter((t) => !t.revealed && t.type === 'SAFE');
+    if (unrevealedSafeTiles.length > 0) {
+      let closestTile = unrevealedSafeTiles[0];
+      let minDistance = getDistance(targetCoord, { q: closestTile.q, r: closestTile.r });
+      for (const t of unrevealedSafeTiles) {
+        const dist = getDistance(targetCoord, { q: t.q, r: t.r });
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestTile = t;
+        }
+      }
+      const roll = Math.random();
+      let nextType: TileType = 'ENEMY';
+      if (roll < 0.50) nextType = 'ENEMY';
+      else if (roll < 0.70) nextType = 'TREASURE';
+      else if (roll < 0.85) nextType = 'SHOP';
+      else nextType = 'REST';
+
+      await prisma.tile.update({
+        where: { id: closestTile.id },
+        data: { type: nextType },
+      });
+
+      // Recalculate danger numbers of neighbors of mutated tile
+      const neighborsOfMutated = getNeighbors(closestTile);
+      const freshSession = await prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        include: { tiles: true },
+      });
+      if (freshSession) {
+        for (const n of neighborsOfMutated) {
+          const neighborTile = freshSession.tiles.find((t) => t.q === n.q && t.r === n.r);
+          if (neighborTile) {
+            const trueDanger = getTrueDangerNumber(freshSession.tiles, n.q, n.r);
+            await prisma.tile.update({
+              where: { id: neighborTile.id },
+              data: { dangerNumber: trueDanger },
+            });
+          }
+        }
+      }
+    }
+  }
+
   // ── Handle special tile types ─────────────────────────────────────────────
   if (targetTile.type === 'ENEMY' && !targetTile.cleared) {
-    const template = getRandomEnemy(session.floor);
+    let template;
+    const isBoss = targetTile.hasItem && (session.floor === 2 || session.floor === 4 || session.floor === 6);
+    if (isBoss) {
+      template = getBiomeBoss(session.floor);
+    } else {
+      template = getRandomEnemy(session.floor);
+    }
     const enemy = buildEnemyFromTemplate(template, session.floor);
 
     // Equipped spells' recipes form the base pool
@@ -331,7 +448,12 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
 
     // Generate enemy queue
     let enemyQueue: CardElement[];
-    if (enemy.isEliteOrBoss) {
+    if (enemy.name === 'Amalgam-9, The Singularity Core') {
+      const pool: CardElement[] = ['FIRE', 'WATER', 'AIR', 'EARTH', 'VOID'];
+      const s1 = pool[Math.floor(Math.random() * pool.length)];
+      const s2 = pool[Math.floor(Math.random() * pool.length)];
+      enemyQueue = ['VOID', 'VOID', s1, s2];
+    } else if (enemy.isEliteOrBoss) {
       enemyQueue = generateBossCounterQueue(
         equippedSpells,
         enemy.mana,
@@ -343,7 +465,10 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
     }
 
     const omens = ['FURY', 'ENRAGE', 'DRAIN', 'SHIELD', 'CURSE'];
-    const initialOmen = omens[Math.floor(Math.random() * omens.length)];
+    let initialOmen = omens[Math.floor(Math.random() * omens.length)];
+    if (enemy.name === 'Amalgam-9, The Singularity Core') {
+      initialOmen = 'DRAIN';
+    }
 
     const updated = await prisma.gameSession.update({
       where: { id: sessionId },
@@ -362,12 +487,14 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
         playerQueue: [],
         enemyQueue,
         enemyQueueRevealed: false,
-        focusPips: 0,
         focusAbilityUsed: false,
         activeOmen: initialOmen,
         lastTurnSpells: [],
         voidElementsNextTurn: 0,
         revealQueueTurns: 0,
+        combatTurn: 1,
+        bossShieldShatteredTurns: 0,
+        bossImmunities: [],
       },
       include: { tiles: true, spells: true },
     });
@@ -377,8 +504,13 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
   if (targetTile.type === 'TREASURE' && !targetTile.cleared) {
     const treasureGrid = generateTreasureGrid(3);
     const savedGridData = session.tiles.map((t) => ({
-      q: t.q, r: t.r, type: t.type, revealed: t.revealed,
-      dangerNumber: t.dangerNumber, hasItem: t.hasItem,
+      q: t.q,
+      r: t.r,
+      type: t.type,
+      revealed: t.revealed,
+      dangerNumber: t.dangerNumber,
+      hasItem: t.hasItem,
+      cleared: t.cleared,
     }));
     await prisma.tile.deleteMany({ where: { sessionId } });
     const updated = await prisma.gameSession.update({
@@ -402,7 +534,7 @@ export async function movePlayer(sessionId: string, targetCoord: AxialCoord) {
     return formatSession(updated);
   }
 
-  if (targetTile.type === 'SHOP' && !targetTile.cleared) {
+  if (targetTile.type === 'SHOP') {
     await generateShopSpellsForSession(sessionId, session.floor);
     const updated = await prisma.gameSession.update({
       where: { id: sessionId },
@@ -501,6 +633,22 @@ export async function submitSequence(
     session.floor
   );
 
+  // Amalgam-9 Element Immunities Negation
+  if (session.enemyName === 'Amalgam-9, The Singularity Core') {
+    const immunities = session.bossImmunities as string[];
+    for (const ts of clash.triggeredSpells) {
+      const spell = equippedSpells.find((s) => s.name === ts.name);
+      if (spell) {
+        const isImmune = spell.recipe.some((el) => immunities.includes(el));
+        if (isImmune) {
+          clash.totalEnemyDamage -= ts.damage;
+          ts.damage = 0;
+        }
+      }
+    }
+    clash.totalEnemyDamage = Math.max(0, clash.totalEnemyDamage);
+  }
+
   // 4. Apply passive bonuses to spell damage
   let totalEnemyDamage = clash.totalEnemyDamage + tickDamage;
   // RAGE_BONUS: FIRE spell damage +25%
@@ -522,7 +670,40 @@ export async function submitSequence(
     }
   }
 
+  // Baron Thalassor Damage Shield & Shatter Scaling
+  let nextBossShieldShatteredTurns = session.bossShieldShatteredTurns;
+  if (session.enemyName === 'Baron Thalassor, The Sunken Bulwark') {
+    if (session.bossShieldShatteredTurns > 0) {
+      totalEnemyDamage = totalEnemyDamage * 2;
+      nextBossShieldShatteredTurns = Math.max(0, session.bossShieldShatteredTurns - 1);
+    } else {
+      totalEnemyDamage = Math.floor(totalEnemyDamage * 0.5);
+    }
+
+    const triggersCount = clash.triggeredSpells.length;
+    if (triggersCount >= 3) {
+      nextBossShieldShatteredTurns = 2;
+    }
+  }
+
   const newEnemyHp = Math.max(0, (session.enemyCurrentHp ?? 0) - totalEnemyDamage);
+
+  // Amalgam-9 Build New Immunities
+  let nextImmunities = [...(session.bossImmunities as string[])];
+  if (session.enemyName === 'Amalgam-9, The Singularity Core') {
+    for (const ts of clash.triggeredSpells) {
+      if (ts.damage > 0) {
+        const spell = equippedSpells.find((s) => s.name === ts.name);
+        if (spell) {
+          for (const el of spell.recipe) {
+            if (!nextImmunities.includes(el)) {
+              nextImmunities.push(el);
+            }
+          }
+        }
+      }
+    }
+  }
   let newPlayerHp = session.currentHp;
 
   // 5. Apply player damage (to HP directly, Vigor removed)
@@ -538,12 +719,30 @@ export async function submitSequence(
     newPlayerHp = Math.min(session.maxHp, newPlayerHp + 5);
   }
 
-  // 8. Check enemy defeat
+  // 8. Focus Bar Calculations (calculated early so we can pass to victory)
+  const counteredCount = clash.slots.filter((s) => s.result === 'COUNTER').length;
+  const spellsCount = clash.triggeredSpells.length;
+  const damageTaken = clash.totalPlayerDamage > 0 ? 1 : 0;
+  
+  // If ultimate was used this turn, starting Focus for this calculation is 0 (as pips were spent)
+  const basePips = session.focusAbilityUsed ? 0 : (session.focusPips ?? 0);
+  const newPips = Math.min(5, Math.max(0, basePips + counteredCount + spellsCount - damageTaken));
+
+  console.log('--- FOCUS PIP CALCULATION ---');
+  console.log('clash.slots results:', clash.slots.map(s => s.result));
+  console.log('counteredCount:', counteredCount);
+  console.log('spellsCount:', spellsCount);
+  console.log('damageTaken:', damageTaken);
+  console.log('basePips:', basePips);
+  console.log('newPips:', newPips);
+  console.log('-----------------------------');
+
+  // 9. Check enemy defeat
   if (newEnemyHp <= 0) {
-    return await resolveVictory(sessionId, session, newPlayerHp, clash, injectedSpares);
+    return await resolveVictory(sessionId, session, newPlayerHp, clash, injectedSpares, newPips);
   }
 
-  // 9. Check player defeat
+  // 10. Check player defeat
   if (newPlayerHp <= 0) {
     const updated = await prisma.gameSession.update({
       where: { id: sessionId },
@@ -552,17 +751,6 @@ export async function submitSequence(
     });
     return { ...formatSession(updated), lastClash: clash };
   }
-
-  // 10. Focus Bar Calculations
-  // Fills by: +1 per countered slot, +1 per triggered spell.
-  // Depletes by: -1 if player took damage.
-  const counteredCount = clash.slots.filter((s) => s.result === 'COUNTER').length;
-  const spellsCount = clash.triggeredSpells.length;
-  const damageTaken = clash.totalPlayerDamage > 0 ? 1 : 0;
-  
-  // If ultimate was used this turn, starting Focus for this calculation is 0 (as pips were spent)
-  const basePips = session.focusAbilityUsed ? 0 : (session.focusPips ?? 0);
-  const newPips = Math.min(5, Math.max(0, basePips + counteredCount + spellsCount - damageTaken));
 
   // 11. Omen Punishments (applied if damage not negated)
   let updatedEnemyMana = session.enemyMana ?? 4;
@@ -576,7 +764,12 @@ export async function submitSequence(
 
   // Rotate Active Omen
   const omens = ['FURY', 'ENRAGE', 'DRAIN', 'SHIELD', 'CURSE'];
-  const nextOmen = omens[Math.floor(Math.random() * omens.length)];
+  let nextOmen = omens[Math.floor(Math.random() * omens.length)];
+  if (session.enemyName === 'Sol-Inured Skimmer, The Dune Weaver' && !clash.enemyDamageNegated) {
+    nextOmen = 'FURY';
+  } else if (session.enemyName === 'Amalgam-9, The Singularity Core') {
+    nextOmen = 'DRAIN';
+  }
 
   // Restore playerMana for Wizard if ultimate was used
   let nextPlayerMana = session.playerMana;
@@ -596,7 +789,12 @@ export async function submitSequence(
 
   // 12. Generate next enemy queue using updated enemy mana
   let nextEnemyQueue: CardElement[];
-  if (session.isEliteOrBoss) {
+  if (session.enemyName === 'Amalgam-9, The Singularity Core') {
+    const pool: CardElement[] = ['FIRE', 'WATER', 'AIR', 'EARTH', 'VOID'];
+    const s1 = pool[Math.floor(Math.random() * pool.length)];
+    const s2 = pool[Math.floor(Math.random() * pool.length)];
+    nextEnemyQueue = ['VOID', 'VOID', s1, s2];
+  } else if (session.isEliteOrBoss) {
     nextEnemyQueue = generateBossCounterQueue(
       equippedSpells,
       updatedEnemyMana,
@@ -609,6 +807,8 @@ export async function submitSequence(
       updatedEnemyMana
     );
   }
+
+  const nextCombatTurn = (session.combatTurn ?? 0) + 1;
 
   // 13. Update session
   const updated = await prisma.gameSession.update({
@@ -629,6 +829,9 @@ export async function submitSequence(
       revealQueueTurns: nextRevealTurns,
       enemyQueueRevealed: nextQueueRevealed,
       enemyMana: updatedEnemyMana,
+      combatTurn: nextCombatTurn,
+      bossShieldShatteredTurns: nextBossShieldShatteredTurns,
+      bossImmunities: nextImmunities,
     },
     include: { tiles: true, spells: true },
   });
@@ -643,7 +846,8 @@ async function resolveVictory(
   session: any,
   newPlayerHp: number,
   clashResult: any,
-  injectedSpares: CardElement[]
+  injectedSpares: CardElement[],
+  newPips: number
 ) {
   const { xp, gold } = getEnemyRewards(session.floor, 'COMMON');
   let goldReward = gold;
@@ -677,6 +881,11 @@ async function resolveVictory(
   // Clear tile and decrement neighbors
   await clearTileAndDecrementNeighbors(sessionId, session.posX, session.posY);
 
+  const isBoss =
+    session.enemyName === 'Sol-Inured Skimmer, The Dune Weaver' ||
+    session.enemyName === 'Baron Thalassor, The Sunken Bulwark' ||
+    session.enemyName === 'Amalgam-9, The Singularity Core';
+
   const updated = await prisma.gameSession.update({
     where: { id: sessionId },
     data: {
@@ -688,8 +897,9 @@ async function resolveVictory(
       enemyCurrentHp: 0,
       spareElements: newSpares as any,
       playerMana: nextPlayerMana,
+      hasKey: isBoss ? true : undefined,
       // Reset combat states
-      focusPips: 0,
+      focusPips: newPips,
       focusAbilityUsed: false,
       activeOmen: null,
       lastTurnSpells: [],
@@ -744,6 +954,69 @@ export async function claimPostCombatRewardSpell(sessionId: string, choiceIndex:
         location: 'LIBRARY',
       },
     });
+  }
+
+  if (pending.didLevelUp) {
+    const levelUpChoices = pickLevelUpChoices(session.playerClass as PlayerClass, session.passives);
+    const updated = await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { phase: 'LEVELUP', pendingLevelUpChoices: levelUpChoices as any },
+      include: { tiles: true, spells: true },
+    });
+    return formatSession(updated);
+  } else {
+    const updated = await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { phase: 'EXPLORING', pendingLevelUpChoices: null as any },
+      include: { tiles: true, spells: true },
+    });
+    return formatSession(updated);
+  }
+}
+
+export async function claimRewardSpellAndReplace(
+  sessionId: string,
+  choiceIndex: number,
+  outgoingSpellId: string
+) {
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { spells: true },
+  });
+  if (!session || session.phase !== 'SPELL_REWARD') return null;
+
+  const pending = session.pendingLevelUpChoices as any;
+  if (!pending || pending.type !== 'SPELL_REWARDS') return null;
+
+  if (choiceIndex !== -1 && pending.choices?.[choiceIndex]) {
+    const chosen = pending.choices[choiceIndex];
+
+    const outgoing = session.spells.find((s) => s.id === outgoingSpellId && s.equipped);
+    if (!outgoing) return null;
+
+    const advancedCount = session.spells.filter((s) => s.equipped && s.isAdvanced).length;
+    const isIncomingAdvanced = chosen.isAdvanced ?? false;
+    const nextAdvancedCount = advancedCount - (outgoing.isAdvanced ? 1 : 0) + (isIncomingAdvanced ? 1 : 0);
+    if (nextAdvancedCount > 2) return { error: 'MAX_ADVANCED' } as any;
+
+    await prisma.$transaction([
+      prisma.spell.update({
+        where: { id: outgoingSpellId },
+        data: { equipped: false, location: 'LIBRARY' },
+      }),
+      prisma.spell.create({
+        data: {
+          sessionId,
+          name: chosen.name,
+          recipe: chosen.recipe,
+          baseDamage: chosen.baseDamage,
+          isAdvanced: isIncomingAdvanced,
+          isUpgraded: false,
+          equipped: true,
+          location: 'LOADOUT',
+        },
+      }),
+    ]);
   }
 
   if (pending.didLevelUp) {
@@ -831,6 +1104,43 @@ export async function unequipSpell(sessionId: string, spellId: string) {
     where: { id: spellId },
     data: { equipped: false, location: 'LIBRARY' },
   });
+
+  const updated = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { tiles: true, spells: true },
+  });
+  return formatSession(updated);
+}
+
+// ── Swap Equipped Spell (when loadout is full) ───────────────────────────────
+
+export async function replaceEquippedSpell(sessionId: string, outgoingSpellId: string, incomingSpellId: string) {
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { spells: true },
+  });
+  if (!session) return null;
+
+  const outgoing = session.spells.find((s) => s.id === outgoingSpellId && s.equipped);
+  const incoming = session.spells.find((s) => s.id === incomingSpellId && !s.equipped);
+  if (!outgoing || !incoming) return null;
+
+  // Enforce limit: max 2 advanced spells
+  const advancedCount = session.spells.filter((s) => s.equipped && s.isAdvanced).length;
+  const nextAdvancedCount = advancedCount - (outgoing.isAdvanced ? 1 : 0) + (incoming.isAdvanced ? 1 : 0);
+  if (nextAdvancedCount > 2) return { error: 'MAX_ADVANCED' } as any;
+
+  // Execute both updates in a transaction
+  await prisma.$transaction([
+    prisma.spell.update({
+      where: { id: outgoingSpellId },
+      data: { equipped: false, location: 'LIBRARY' },
+    }),
+    prisma.spell.update({
+      where: { id: incomingSpellId },
+      data: { equipped: true, location: 'LOADOUT' },
+    }),
+  ]);
 
   const updated = await prisma.gameSession.findUnique({
     where: { id: sessionId },
@@ -1142,7 +1452,8 @@ export async function descendToNextFloor(sessionId: string) {
   if (!session || session.phase !== 'FLOOR_END') return null;
 
   const newFloor = session.floor + 1;
-  const grid = generateGrid(3);
+  const nextBiome = newFloor <= 2 ? 'SIROCCO' : newFloor <= 4 ? 'SEPULCHER' : 'VOID_SCAUR';
+  const grid = generateGrid(3, nextBiome, newFloor);
 
   await prisma.tile.deleteMany({ where: { sessionId } });
 
@@ -1155,6 +1466,7 @@ export async function descendToNextFloor(sessionId: string) {
     data: {
       phase: 'EXPLORING',
       floor: newFloor,
+      biome: nextBiome,
       posX: 0,
       posY: 0,
       hasKey: false,
@@ -1167,6 +1479,8 @@ export async function descendToNextFloor(sessionId: string) {
           revealed: tile.revealed,
           dangerNumber: tile.dangerNumber,
           cleared: tile.cleared ?? false,
+          isMirage: tile.isMirage ?? false,
+          calcifiedHits: tile.calcifiedHits ?? 0,
         })),
       },
     },
@@ -1245,7 +1559,7 @@ export async function unleashUltimate(sessionId: string) {
       basicStrikeDamage: 0,
       staleTurns: 0,
     };
-    return await resolveVictory(sessionId, session, session.currentHp, dummyClash, []);
+    return await resolveVictory(sessionId, session, session.currentHp, dummyClash, [], 0);
   }
 
   const updated = await prisma.gameSession.update({

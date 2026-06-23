@@ -48,6 +48,12 @@ enum PlayerClass {
   OVERSEER
 }
 
+enum Biome {
+  SIROCCO
+  SEPULCHER
+  VOID_SCAUR
+}
+
 model User {
   id        String        @id @default(cuid())
   email     String?       @unique
@@ -62,6 +68,7 @@ model GameSession {
 
   phase GamePhase @default(EXPLORING)
   floor Int       @default(1)
+  biome Biome     @default(SIROCCO)
 
   // Player Stats
   playerClass  PlayerClass @default(BERSERKER)
@@ -115,7 +122,11 @@ model GameSession {
   voidElementsNextTurn Int        @default(0)
   revealQueueTurns     Int        @default(0)
   staleTurns           Int        @default(0)
+  combatTurn           Int        @default(0)
 
+  // Biome-specific Boss Mechanics
+  bossShieldShatteredTurns Int      @default(0)
+  bossImmunities           String[] @default([])
 
   // Pending level-up choices / rewards
   pendingLevelUpChoices Json?   // LevelUpChoice[] or SpellRewardChoice[]
@@ -139,6 +150,8 @@ model Tile {
   dangerNumber Int      @default(0)
   hasItem      Boolean  @default(false)
   cleared      Boolean  @default(false)
+  isMirage     Boolean  @default(false)
+  calcifiedHits Int      @default(0)
 
   @@unique([sessionId, q, r])
 }

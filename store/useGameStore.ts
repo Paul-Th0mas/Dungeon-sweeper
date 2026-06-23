@@ -11,6 +11,7 @@ import {
   CardElement,
   Spell,
   SpareElements,
+  Biome,
 } from '../lib/types';
 import { coordToString } from '../lib/hexMath';
 import {
@@ -24,8 +25,10 @@ import {
   getRecentSessions as serverGetRecentSessions,
   resumeSession as serverResumeSession,
   claimPostCombatRewardSpell as serverClaimRewardSpell,
+  claimRewardSpellAndReplace as serverClaimRewardSpellAndReplace,
   equipSpell as serverEquipSpell,
   unequipSpell as serverUnequipSpell,
+  replaceEquippedSpell as serverReplaceEquippedSpell,
   handleEvent as serverHandleEvent,
   clickTreasureTile as serverClickTreasureTile,
   exitTreasureRoom as serverExitTreasureRoom,
@@ -44,6 +47,7 @@ import {
 interface GameStore {
   sessionId: string | null;
   gamePhase: GamePhase;
+  biome: Biome;
   player: Player | null;
   grid: Record<string, Tile>;
   combatState: CombatState | null;
@@ -79,8 +83,10 @@ interface GameStore {
 
   // Actions — Spells
   claimRewardSpell: (choiceIndex: number) => Promise<void>;
+  claimRewardSpellAndReplace: (choiceIndex: number, outgoingSpellId: string) => Promise<void>;
   equipSpell: (spellId: string) => Promise<void>;
   unequipSpell: (spellId: string) => Promise<void>;
+  replaceEquippedSpell: (outgoingSpellId: string, incomingSpellId: string) => Promise<void>;
 
   // Actions — Level Up
   chooseLevelUp: (passive: PassiveAbility) => Promise<void>;
@@ -112,6 +118,7 @@ function applySessionData(data: any) {
   return {
     sessionId: data.id,
     gamePhase: data.phase,
+    biome: data.biome,
     player: data.player,
     grid: data.grid,
     combatState: data.combatState,
@@ -124,6 +131,7 @@ function applySessionData(data: any) {
 export const useGameStore = create<GameStore>((set, get) => ({
   sessionId: null,
   gamePhase: 'DASHBOARD',
+  biome: 'SIROCCO',
   player: null,
   grid: {},
   combatState: null,
@@ -376,6 +384,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(applySessionData(data));
   },
 
+  claimRewardSpellAndReplace: async (choiceIndex, outgoingSpellId) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    const data = await serverClaimRewardSpellAndReplace(sessionId, choiceIndex, outgoingSpellId);
+    if (!data || (data as any).error) return;
+    set(applySessionData(data));
+  },
+
   equipSpell: async (spellId) => {
     const { sessionId } = get();
     if (!sessionId) return;
@@ -388,6 +404,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { sessionId } = get();
     if (!sessionId) return;
     const data = await serverUnequipSpell(sessionId, spellId);
+    if (!data || (data as any).error) return;
+    set(applySessionData(data));
+  },
+
+  replaceEquippedSpell: async (outgoingSpellId, incomingSpellId) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    const data = await serverReplaceEquippedSpell(sessionId, outgoingSpellId, incomingSpellId);
     if (!data || (data as any).error) return;
     set(applySessionData(data));
   },

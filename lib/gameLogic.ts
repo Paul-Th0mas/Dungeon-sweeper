@@ -1,4 +1,4 @@
-import { AxialCoord, Tile, TileType, CardElement, PlayerClass, EnemyTier, EnemySpell, SpareElements } from './types';
+import { AxialCoord, Tile, TileType, CardElement, PlayerClass, EnemyTier, EnemySpell, SpareElements, Biome } from './types';
 import { getNeighbors, coordToString } from './hexMath';
 import { shuffle } from 'lodash';
 
@@ -271,13 +271,73 @@ export const ENEMY_ROSTER: EnemyTemplate[] = [
     rarity: 'LEGENDARY',
     spawnFloors: [7, 99],
   },
+  // ── Biome Bosses ──────────────────────────────────────────────────────────
+  {
+    name: 'Sol-Inured Skimmer, The Dune Weaver',
+    tier: 2,
+    hpBase: 180, hpPerFloor: 0,
+    attackBase: 12, attackPerFloor: 0,
+    mana: 4,
+    isEliteOrBoss: true,
+    elementBias: { FIRE: 0.5, AIR: 0.5 },
+    spellbook: [
+      { name: 'Thermal Draft', recipe: ['FIRE', 'AIR', 'AIR', 'FIRE'], baseDamage: 60 },
+      { name: 'Sand Blindness', recipe: ['AIR', 'FIRE'], baseDamage: 30 }
+    ],
+    rewardElements: ['FIRE', 'AIR'],
+    rarity: 'LEGENDARY',
+    spawnFloors: [2, 2],
+  },
+  {
+    name: 'Baron Thalassor, The Sunken Bulwark',
+    tier: 2,
+    hpBase: 240, hpPerFloor: 0,
+    attackBase: 15, attackPerFloor: 0,
+    mana: 4,
+    isEliteOrBoss: true,
+    elementBias: { EARTH: 0.5, WATER: 0.5 },
+    spellbook: [
+      { name: 'Tidal Compression', recipe: ['EARTH', 'WATER', 'EARTH', 'VOID'], baseDamage: 75 },
+    ],
+    rewardElements: ['EARTH', 'WATER'],
+    rarity: 'LEGENDARY',
+    spawnFloors: [4, 4],
+  },
+  {
+    name: 'Amalgam-9, The Singularity Core',
+    tier: 3,
+    hpBase: 350, hpPerFloor: 0,
+    attackBase: 22, attackPerFloor: 0,
+    mana: 4,
+    isEliteOrBoss: true,
+    elementBias: { VOID: 0.5, FIRE: 0.25, EARTH: 0.25 },
+    spellbook: [
+      { name: 'Sliding Entropy', recipe: ['VOID', 'VOID', 'AIR', 'WATER'], baseDamage: 90 },
+    ],
+    rewardElements: ['FIRE', 'WATER', 'AIR', 'EARTH'],
+    rarity: 'LEGENDARY',
+    spawnFloors: [6, 6],
+  },
 ];
 
+export function getBiomeBoss(floor: number): EnemyTemplate {
+  const bossName =
+    floor === 2 ? 'Sol-Inured Skimmer, The Dune Weaver' :
+    floor === 4 ? 'Baron Thalassor, The Sunken Bulwark' :
+    'Amalgam-9, The Singularity Core';
+  const boss = ENEMY_ROSTER.find((e) => e.name === bossName);
+  if (!boss) {
+    throw new Error(`Boss template not found for floor ${floor}`);
+  }
+  return boss;
+}
+
 export function getRandomEnemy(floor: number): EnemyTemplate {
+  // Exclude bosses from random pool
   const eligible = ENEMY_ROSTER.filter(
-    (e) => floor >= e.spawnFloors[0] && floor <= e.spawnFloors[1]
+    (e) => floor >= e.spawnFloors[0] && floor <= e.spawnFloors[1] && e.rarity !== 'LEGENDARY'
   );
-  const pool = eligible.length > 0 ? eligible : ENEMY_ROSTER.filter((e) => e.tier === 1);
+  const pool = eligible.length > 0 ? eligible : ENEMY_ROSTER.filter((e) => e.tier === 1 && e.rarity !== 'LEGENDARY');
   const roll = Math.random();
   // Prefer rarer on higher floors
   const rarePull =
@@ -286,7 +346,7 @@ export function getRandomEnemy(floor: number): EnemyTemplate {
     floor >= 3 ? roll > 0.75 :
     roll > 0.9;
   const rarityPool = pool.filter((e) =>
-    rarePull ? (e.rarity === 'RARE' || e.rarity === 'EPIC' || e.rarity === 'LEGENDARY') : e.rarity === 'COMMON'
+    rarePull ? (e.rarity === 'RARE' || e.rarity === 'EPIC') : e.rarity === 'COMMON'
   );
   const chosen = (rarityPool.length > 0 ? rarityPool : pool)[
     Math.floor(Math.random() * (rarityPool.length > 0 ? rarityPool : pool).length)
@@ -314,7 +374,7 @@ export function buildEnemyFromTemplate(template: EnemyTemplate, floor: number) {
 
 // ── Grid Generation ───────────────────────────────────────────────────────────
 
-export function generateGrid(radius: number): Record<string, Tile> {
+export function generateGrid(radius: number, biome: Biome = 'SIROCCO', floor: number = 1): Record<string, Tile> {
   const grid: Record<string, Tile> = {};
 
   for (let q = -radius; q <= radius; q++) {
@@ -328,6 +388,8 @@ export function generateGrid(radius: number): Record<string, Tile> {
         revealed: false,
         dangerNumber: 0,
         cleared: false,
+        isMirage: false,
+        calcifiedHits: 0,
       };
     }
   }
@@ -351,6 +413,19 @@ export function generateGrid(radius: number): Record<string, Tile> {
   placeTiles('REST',    1);
   placeTiles('TREASURE', 1);
   placeTiles('EVENT',   2);
+  
+  const isBossFloor = floor === 2 || floor === 4 || floor === 6;
+  if (!isBossFloor) {
+    placeTiles('KEY', 1);
+  } else {
+    // Select one random ENEMY tile and set hasItem: true to designate it as the Boss tile
+    const enemyCoords = Object.keys(grid).filter((coordStr) => grid[coordStr].type === 'ENEMY');
+    if (enemyCoords.length > 0) {
+      const bossCoord = enemyCoords[Math.floor(Math.random() * enemyCoords.length)];
+      grid[bossCoord].hasItem = true;
+    }
+  }
+
   placeTiles('EXIT',    1);
 
   Object.values(grid).forEach((tile) => {
@@ -365,6 +440,32 @@ export function generateGrid(radius: number): Record<string, Tile> {
     });
     tile.dangerNumber = count;
   });
+
+  // Apply Biome Modifiers
+  if (biome === 'SIROCCO') {
+    Object.values(grid).forEach((tile) => {
+      if (tile.type === 'SAFE' && coordToString(tile.coord) !== '0,0') {
+        const neighbors = getNeighbors(tile.coord);
+        const hasEnemyNeighbor = neighbors.some((n) => {
+          const neighbor = grid[coordToString(n)];
+          return neighbor && neighbor.type === 'ENEMY';
+        });
+        if (hasEnemyNeighbor && Math.random() < 0.25) {
+          tile.isMirage = true;
+        }
+      }
+    });
+  } else if (biome === 'SEPULCHER') {
+    const validCalcifiedCoords = Object.keys(grid).filter((c) => c !== '0,0' && grid[c].type !== 'EXIT');
+    const calcifiedCount = Math.floor(validCalcifiedCoords.length * 0.30);
+    const shuffledCoords = shuffle(validCalcifiedCoords);
+    for (let i = 0; i < calcifiedCount; i++) {
+      const coordStr = shuffledCoords[i];
+      if (grid[coordStr]) {
+        grid[coordStr].calcifiedHits = 2;
+      }
+    }
+  }
 
   grid['0,0'].revealed = true;
   return grid;
@@ -385,6 +486,8 @@ export function generateTreasureGrid(radius: number): Record<string, Tile> {
         dangerNumber: 0,
         hasItem: true,
         cleared: false,
+        isMirage: false,
+        calcifiedHits: 0,
       };
     }
   }
@@ -417,14 +520,10 @@ export function generateTreasureGrid(radius: number): Record<string, Tile> {
 }
 
 // ── Post-Combat Spell Rewards ─────────────────────────────────────────────────
-// After defeating an enemy, offer the player a choice of 3 spells to add to their library.
 export function generateSpellRewardChoices(playerClass: PlayerClass, floor: number): SpellTemplate[] {
   const basicPool = BASIC_SPELLS.filter(s => s.playerClass === playerClass);
   const advancedPool = ADVANCED_SPELLS.filter(s => s.playerClass === playerClass || s.playerClass === undefined);
 
-  // At floor 1: only basic class spells
-  // At floor 2-3: basic class spells + a few advanced class/neutral spells
-  // At floor 4+: full basic + advanced class/neutral spells
   const pool = floor >= 4 ? [...basicPool, ...advancedPool] :
                floor >= 2 ? [...basicPool, ...advancedPool.slice(0, 3)] :
                basicPool;

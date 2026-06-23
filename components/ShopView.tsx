@@ -6,6 +6,7 @@ import { ShoppingBag, Flame, Droplets, Wind, Mountain, Zap, ArrowRight, Tag, Pac
 import { Spell, CardElement } from '@/lib/types';
 import { useState } from 'react';
 import { clsx } from 'clsx';
+import SpellSwapModal from './SpellSwapModal';
 
 const EL: Record<CardElement, { color: string; bg: string; border: string; icon: React.ElementType; label: string }> = {
   FIRE:  { color: 'text-orange-400', bg: 'bg-orange-950/60', border: 'border-orange-500/50', icon: Flame,    label: 'Fire'  },
@@ -59,9 +60,11 @@ function SpellShopCard({ spell, onBuy, canAfford }: { spell: Spell; onBuy: () =>
 }
 
 export default function ShopView() {
-  const { player, shopSpells, buySpell, buySpareElements, sellSpell, exitShop } = useGameStore();
+  const { player, shopSpells, buySpell, buySpareElements, sellSpell, exitShop, replaceEquippedSpell } = useGameStore();
   const [tab, setTab] = useState<ShopTab>('SPELLS');
   const [loading, setLoading] = useState(false);
+  const [pendingSwapSpell, setPendingSwapSpell] = useState<Spell | null>(null);
+  const [swapLoading, setSwapLoading] = useState(false);
 
   if (!player) return null;
 
@@ -73,7 +76,19 @@ export default function ShopView() {
 
   const handleBuySpell = async (spellId: string) => {
     setLoading(true);
+    const equippedBefore = player.spells.filter(s => s.equipped).length;
     await buySpell(spellId);
+
+    if (equippedBefore >= 4) {
+      // Find the newly purchased spell in the store's updated player spells list
+      const latestPlayer = useGameStore.getState().player;
+      if (latestPlayer) {
+        const boughtSpell = latestPlayer.spells.find(s => s.id === spellId);
+        if (boughtSpell) {
+          setPendingSwapSpell(boughtSpell);
+        }
+      }
+    }
     setLoading(false);
   };
 
@@ -96,7 +111,7 @@ export default function ShopView() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className="w-full max-w-2xl bg-zinc-950 border border-zinc-800/60 rounded-3xl p-6 max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
 
@@ -230,6 +245,22 @@ export default function ShopView() {
           <span>Library: {ownedSpells.length} total spells</span>
         </div>
       </motion.div>
+
+      {/* Spell Swap Modal – shown when loadout is full after shop purchase */}
+      {pendingSwapSpell && (
+        <SpellSwapModal
+          incomingSpell={pendingSwapSpell}
+          equippedSpells={player.spells.filter(s => s.equipped)}
+          loading={swapLoading}
+          onReplace={async (outgoingId) => {
+            setSwapLoading(true);
+            await replaceEquippedSpell(outgoingId, pendingSwapSpell.id);
+            setSwapLoading(false);
+            setPendingSwapSpell(null);
+          }}
+          onDiscard={() => setPendingSwapSpell(null)}
+        />
+      )}
     </div>
   );
 }
